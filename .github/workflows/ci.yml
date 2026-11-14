@@ -1,0 +1,165 @@
+name: ci
+
+# 每次推送到 main / PR 都跑：后端单测 + 宿主契约校验 + 发布矩阵的交叉编译冒烟。
+# 说明：宿主的 apps/api 尚未发布为 Go module，因此这里检出 SForum 源码并覆盖 go.mod 的 replace。
+# 仓库根就是「外部扩展源根」，扩展包位于 plugins/sforum.qq-bot。
+#
+# 骨架阶段（M0）：后端 module 与扩展清单尚未落地，与之相关的步骤会被跳过，
+# 只保留结构检查并发出提示。业务代码落地后这些步骤自动走真分支，不需要再改本文件。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SFORUM_REPOSITORY: keeptrue/SForum
+  # 构建所使用的宿主引用。宿主再改契约时这里跟着改；需要复现旧构建时钉到 tag/commit。
+  SFORUM_REF: main
+  PACKAGE_DIR: plugins/sforum.qq-bot
+
+jobs:
+  skeleton:
+    # 始终运行：检查仓库骨架本身的约定（根级文件、包目录结构、脚本可执行位）。
+    name: skeleton
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check root-level conventions
+        run: |
+          set -euo pipefail
+          for f in AGENTS.md CHANGELOG.md LICENSE README.md NOTES.md .gitignore scripts/prepare-package.sh; do
+            test -f "$f" || { echo "::error title=缺少根级文件::$f"; exit 1; }
+          done
+          for d in plugins/sforum.qq-bot/manifest/langs plugins/sforum.qq-bot/backend plugins/sforum.qq-bot/brand; do
+            test -d "$d" || { echo "::error title=缺少包目录::$d"; exit 1; }
+          done
+          test -x scripts/prepare-package.sh || { echo "::error title=脚本不可执行::scripts/prepare-package.sh 需要 chmod +x"; exit 1; }
+
+      - name: Check workflows are wired
+        run: |
+          set -euo pipefail
+          for w in ci.yml release.yml; do
+            test -f ".github/workflows/$w" || { echo "::error title=缺少工作流::$w"; exit 1; }
+          done
+          grep -q 'plugins/sforum.qq-bot' .github/workflows/release.yml \
+            || { echo "::error title=参数未参数化::release.yml 必须指向 plugins/sforum.qq-bot"; exit 1; }
+
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout plugin repo
+        uses: actions/checkout@v7
+        with:
+          path: plugin
+
+      - name: Checkout SForum framework
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.SFORUM_REPOSITORY }}
+          ref: ${{ env.SFORUM_REF }}
+          path: sforum
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          # 以宿主 go.mod 为准：插件是 replace 进宿主模块构建的，工具链要同时满足两边，
+          # 而宿主的 go 指令通常更高。
+          go-version-file: sforum/apps/api/go.mod
+          cache: false
+
+      - name: Detect backend readiness
+        id: detect
+        run: |
+          set -euo pipefail
+          if [ -f "plugin/$PACKAGE_DIR/backend/go.mod" ]; then
+            echo "backend=ready" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=pending" >> "$GITHUB_OUTPUT"
+            echo "::notice title=后端尚未落地::$PACKAGE_DIR/backend/go.mod 不存在，跳过后端构建与测试（骨架阶段）。"
+          fi
+          if [ -f "plugin/$PACKAGE_DIR/sforum.extension.json" ]; then
+            echo "manifest=ready" >> "$GITHUB_OUTPUT"
+          else
+            echo "manifest=pending" >> "$GITHUB_OUTPUT"
+            echo "::notice title=清单尚未落地::$PACKAGE_DIR/sforum.extension.json 不存在，跳过宿主契约校验。"
+          fi
+
+      - name: Check plugin go directive covers the host requirement
+        if: steps.detect.outputs.backend == 'ready'
+        run: |
+          set -euo pipefail
+          host_go="$(awk '$1 == "go" { print $2; exit }' sforum/apps/api/go.mod)"
+          pkg_go="$(awk '$1 == "go" { print $2; exit }' "plugin/${PACKAGE_DIR}/backend/go.mod")"
+          echo "host go=${host_go} plugin go=${pkg_go}"
+          newest="$(printf '%s\n%s\n' "${host_go}" "${pkg_go}" | sort -V | tail -n 1)"
+          if [ "${newest}" != "${pkg_go}" ]; then
+            echo "::error title=go 指令落后于宿主::宿主 apps/api 要求 go >= ${host_go}，插件 go.mod 仍是 ${pkg_go}。把 ${PACKAGE_DIR}/backend/go.mod 的 go 指令提到 ${host_go}。"
+            exit 1
+          fi
+
+      - name: Point SDK replace at the checked-out framework
+        if: steps.detect.outputs.backend == 'ready'
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
+        run: go mod edit -replace github.com/keeptrue/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
+
+      - name: Backend vet and unit tests
+        if: steps.detect.outputs.backend == 'ready'
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Build plugin binary (host platform)
+        if: steps.detect.outputs.backend == 'ready'
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
+        # 与宿主 dev 构建（ExtensionPackage.BuildBackend）同一组参数：摘要只由源码决定。
+        run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "$GITHUB_WORKSPACE/plugin/${PACKAGE_DIR}/backend/plugin" ./
+
+      - name: Cross-compile smoke (rest of the release matrix)
+        if: steps.detect.outputs.backend == 'ready'
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
+        # 发布矩阵里的平台在打标签前先编译一遍：GOOS/GOARCH 专属的编译错误不该留到发版。
+        run: |
+          set -euo pipefail
+          for target in linux/arm64 darwin/arm64 darwin/amd64; do
+            echo "building ${target}"
+            CGO_ENABLED=0 GOOS="${target%/*}" GOARCH="${target#*/}" \
+              go build -trimpath -buildvcs=false -o /dev/null ./
+          done
+
+      - name: Refresh package digests
+        if: steps.detect.outputs.manifest == 'ready'
+        working-directory: sforum/apps/api
+        run: go run ./cmd/sforum extension digest --write "$GITHUB_WORKSPACE/plugin/${PACKAGE_DIR}"
+
+      - name: Report stale committed digests (non-blocking)
+        if: steps.detect.outputs.manifest == 'ready'
+        working-directory: plugin
+        run: |
+          if ! git diff --quiet -- "$PACKAGE_DIR/sforum.extension.json"; then
+            echo "::notice title=包摘要有变化::本机构建的可执行文件摘要与仓库中的不一致（工具链差异常见）。发布流水线会按平台重新写入摘要，无需手工提交。"
+            git --no-pager diff --stat -- "$PACKAGE_DIR/sforum.extension.json"
+          fi
+
+      - name: Extension manifest validation
+        if: steps.detect.outputs.manifest == 'ready'
+        working-directory: sforum/apps/api
+        run: go run ./cmd/sforum extension validate "$GITHUB_WORKSPACE/plugin/${PACKAGE_DIR}"
+
+      - name: Extension host contract checks
+        if: steps.detect.outputs.manifest == 'ready'
+        working-directory: sforum/apps/api
+        run: go run ./cmd/sforum extension test "$GITHUB_WORKSPACE/plugin/${PACKAGE_DIR}"
