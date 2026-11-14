@@ -440,7 +440,7 @@
 | **Embed** | ❌ | ✅ 仅发不收 |
 | **文件消息** | ✅ 收发 | ❌（文档未覆盖发送文件） |
 | **ARK 卡片** | ❌ 发送（可接收） | ❌ 接收（可发送，需申请权限） |
-| **撤回** | `DELETE /v2/groups/{group_openid}/messages/{message_id}`，**发送超 2 分钟不可撤回**；机器人是群管理员时可撤回成员消息 | `DELETE /channels/{channel_id}/messages/{message_id}?hidetip=false`；「公域机器人暂不支持申请，仅私域机器人可用」 |
+| **撤回** | `DELETE /v2/groups/{group_openid}/messages/{message_id}`，**发送超 2 分钟不可撤回**；机器人是群管理员时可撤回成员消息 | `DELETE /channels/{channel_id}/messages/{message_id}?hidetip=false`；「公域机器人暂不支持申请，仅私域机器人可用」（该提示原文出现在该页，但同页「开通后需要先将机器人从频道移除，然后重新添加」一句语义不明确，可能沿用自其它能力，**适用范围文档未覆盖**） |
 | **@全体成员** | 群主权限维度管理（`allow_proactive_msg` / `recv_msg_setting`） | 频道主/管理员维度管理 |
 | **权限模型** | 群主在添加机器人时设置「接收全量消息」「主动推送消息」「撤回成员消息」三项开关（[FAQ](https://bot.q.qq.com/wiki/bot_FAQ/)） | 频道主 / 频道管理员，子频道权限、身份组权限体系完整 |
 | **主动消息审核** | 无此机制 | 有：`MESSAGE_AUDIT` intent 事件返回 `MessageAudited`；错误码 `304023/304024` 携带 `audit_id` |
