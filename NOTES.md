@@ -29,14 +29,19 @@
 
 ## 3. 骨架阶段的 CI 行为
 
-`backend/` 与 `sforum.extension.json` 尚未落地。若 CI 无条件跑 `go vet ./...`，
-第一次推送就会红。因此两个工作流都做了**存在性判断**：
+`backend/` 与 `sforum.extension.json` 尚未落地。若 `ci.yml` 无条件跑 `go vet ./...`，
+第一次推送就会红。因此 `ci.yml` 做了**存在性判断**：
 
 - 后端 module 不存在 → 跳过 Go 构建与测试，只发一条 `::notice` 说明尚未就位；
 - 清单不存在 → 跳过 `extension digest --write` / `validate` / `test`。
 
 这是刻意的：骨架阶段的红灯没有信息量，而绿灯 + 一条说明能真实反映「结构已就位、
 业务未就位」这个状态。后端落地后，这些判断自然走真分支，不需要再改工作流。
+
+`release.yml` **不做**这个宽容处理：它的 `verify` 在后端或清单缺失时直接
+`::error` + exit 1（tag 推送与 `workflow_dispatch` 手动触发都跑）。理由是发版的
+语义就是「产出可安装包」，没有包可打时失败才是正确信号；把这条门禁放宽成提示，
+等于让一个打不出东西的 tag 走完全流程才失败。
 
 ## 4. 产物命名：为什么是 `sforum.qq-bot`
 
@@ -82,8 +87,15 @@
 | `brand/icon.png` | 512×512 PNG | 120 KiB |
 | `brand/social-preview.png` | 1280×640 PNG | 600 KiB |
 
-生成与校验走宿主脚本 `SForum/scripts/brand/generate.mjs`；门禁命令是
-`go run ./cmd/sforum extension brand check <包路径>`，已串进 `prepare-package.sh`。
+三张图**由本仓库自行绘制并导出**，不走宿主 `SForum/scripts/brand/` 下的生成器模板：
+那套模板把主色写死为 SForum 主蓝 `#2671ed`（`BRAND_START`），且
+`SForum/scripts/brand/spec.json` 里没有 `sforum.qq-bot` 条目（`grep -c 'qq-bot'` → 0），
+照走会用主蓝覆盖本插件的 QQ 蓝。矢量源是 `brand/icon.svg` 与
+`docs/brand/social-preview.svg`，导出命令见 `plugins/sforum.qq-bot/README.md`
+的「重新导出」段（headless chrome 截图 + Pillow 压缩）。
+
+校验走宿主门禁：`go run ./cmd/sforum extension brand check <包路径>`，已串进
+`scripts/prepare-package.sh` 与 `release.yml`。
 
 品牌文件不进 `packageFiles`，但属于包树：改图会改变包摘要，走正常升级流程。
 **不要为了消掉摘要漂移去改版本号。**
@@ -101,9 +113,15 @@ QQ 开放平台的 AppID / AppSecret 只走后台设置页（`secret` 类型）�
 
 ## 9. 待验证的问题（实现阶段）
 
-1. QQ 侧长连接（WebSocket）与 HTTP 回调两种接入方式，哪种更适合长驻的论坛实例？
+1. **待办：把本插件纳入宿主的品牌生成器流程，或正式记录为「例外」。**
+   宿主 `SForum/scripts/brand/` 的生成器把主色写死为 SForum 主蓝 `#2671ed`，
+   `spec.json` 里也没有 `sforum.qq-bot` 条目（`grep -c 'qq-bot'` → 0）。当前做法是
+   本仓库自行绘制（见 §7），代价是**宿主改了品牌模板，本插件不会跟着更新**。
+   两条出路：给 `spec.json` 补一条 `sforum.qq-bot` 条目并允许覆盖主色；或在宿主侧
+   记一份「插件自有品牌例外」清单。两件事都不该由插件单方面决定，需与宿主侧对齐。
+2. QQ 侧长连接（WebSocket）与 HTTP 回调两种接入方式，哪种更适合长驻的论坛实例？
    倾向长连接：省掉公网回调地址的部署成本，但需要处理断线重连与多实例抢占。
-2. 多个论坛实例同时指向同一个 QQ App 时，事件会被多份消费。是否需要在插件侧做
+3. 多个论坛实例同时指向同一个 QQ App 时，事件会被多份消费。是否需要在插件侧做
    租约，还是交由运营者保证一个 App 只对一个站点？
-3. 入站回流是否应该默认关闭。默认开启意味着任何群成员发言都可能变成论坛内容，
+4. 入站回流是否应该默认关闭。默认开启意味着任何群成员发言都可能变成论坛内容，
    这在权限模型上是危险的。倾向默认关闭 + 显式关键词前缀 + 显式群白名单。

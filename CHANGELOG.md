@@ -30,6 +30,6 @@
 
 ### 说明
 
-- 后端实现、扩展清单 `sforum.extension.json` 与品牌三图（`icon.svg` / `icon.png` /
-  `social-preview.png`）尚未提交，因此当前没有可安装的扩展包。
+- 品牌三图（`icon.svg` / `icon.png` / `social-preview.png`）已入库；
+  扩展清单 `sforum.extension.json` 与插件后端尚未落地，因此当前没有可安装的扩展包。
 - 骨架阶段不承诺任何运行时行为；首个可用版本的功能清单会在实现落地后补写。

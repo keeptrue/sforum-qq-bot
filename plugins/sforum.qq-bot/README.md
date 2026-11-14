@@ -14,10 +14,14 @@ backend/                   Protocol V2 服务（独立 Go module，待落地）
 brand/                     icon.svg / icon.png / social-preview.png（已交付）
 ```
 
-> **当前状态：M0 仓库骨架。** 上述四项均未提交内容，因此当前没有可安装的扩展包。
+> **当前状态：M0 仓库骨架。** 品牌资产已交付并入库；仅 `sforum.extension.json`、
+> `manifest/langs/` 与 `backend/` 三项尚未落地，因此当前没有可安装的扩展包。
 > 目录先占位是为了让 CI、打包脚本与发布流水线的路径在业务代码落地前就固定下来。
 
 ## 快速验证
+
+> **骨架期说明**：`backend/` 下还没有 `go.mod`，`prepare-package.sh` 会以 exit 1
+> 明确提示缺什么。本节自 **M2（清单与后端落地那一步）起可用**，届时再照此执行。
 
 ```bash
 cd backend && go vet ./... && go test ./...

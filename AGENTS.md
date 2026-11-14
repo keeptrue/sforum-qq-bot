@@ -8,18 +8,22 @@ SForum 的 QQ 机器人插件：让论坛与 QQ 双向联动（消息接收、�
 - 扩展 id：`sforum.qq-bot`；版本在 `plugins/sforum.qq-bot/sforum.extension.json`
 - 面向运营者的说明见仓库根 `README.md`，设计取舍与踩坑记录见 `NOTES.md`
 
-> 当前状态：**M0 仓库骨架**。目录、CI、发布流水线已就位，插件后端（`backend/`）尚未落地，
-> 因此清单与品牌资产还未提交。骨架阶段的 CI 会检测后端是否就位，未就位时只做结构检查并
-> 发出提示，不判失败。
+> 当前状态：**M0 仓库骨架**。目录、CI、发布流水线已就位，品牌资产已交付并入库；
+> **仅清单 `sforum.extension.json` 与插件后端（`backend/`）未落地**。
+> 骨架阶段的 CI 会检测后端是否就位，未就位时只做结构检查并发出提示，不判失败。
 
 ## 目录布局
 
 ```text
 sforum-qq-bot/
+├── docs/                          ← 任务书、调研结论与品牌矢量源
+│   ├── plan-qq-bot.md             ← 产品任务书
+│   ├── qq-api-v2-capabilities.md  ← QQ 官方机器人 API v2 能力盘点
+│   └── brand/social-preview.svg   ← 社交卡矢量源
 ├── plugins/sforum.qq-bot/         ← 扩展包：manifest、langs、backend、brand
 │   ├── manifest/langs/           ← zh-CN / en-US 的扩展名与描述
 │   ├── backend/                  ← Protocol V2 服务（独立 Go module，待建）
-│   ├── brand/                    ← icon.svg / icon.png / social-preview.png（待设计）
+│   ├── brand/                    ← icon.svg / icon.png / social-preview.png（已交付）
 │   └── README.md                 ← 包级说明
 ├── scripts/prepare-package.sh    ← build → digest --write → validate → brand check → test
 ├── .github/workflows/            ← ci.yml / release.yml
@@ -77,7 +81,9 @@ cd plugins/sforum.qq-bot/backend && go vet ./... && go test ./...
 - `release.yml`：`v*` 标签（或手动）触发；`verify` → 四平台 `build` → `publish`
   （`SHA256SUMS` + Release）。标签版本必须等于清单 `version`，否则 verify 直接失败。
 - 产物命名：`sforum.qq-bot_<version>_<os>_<arch>.zip`（附 SBOM）。
-- 骨架阶段（后端与清单尚未落地）两个工作流都会跳过 Go 相关步骤并只发提示。
+- 骨架阶段（后端与清单尚未落地）两个工作流的行为不同：**`ci.yml` 跳过** Go 与宿主契约
+  相关步骤并只发 `::notice`，不判失败；**`release.yml` 的 `verify` 直接失败**
+  （`::error` + exit 1，tag 推送与手动触发都跑）——发版必须有可打包物。
 
 ## 验证标准（不要只跑单测就报完成）
 
