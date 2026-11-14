@@ -11,7 +11,7 @@ SForum 扩展包：让论坛与 QQ 双向联动（站内内容推送到 QQ 群�
 sforum.extension.json      Manifest V3（待落地）
 manifest/langs/            zh-CN / en-US 的扩展名与描述（待落地）
 backend/                   Protocol V2 服务（独立 Go module，待落地）
-brand/                     icon.svg / icon.png / social-preview.png（待设计）
+brand/                     icon.svg / icon.png / social-preview.png（已交付）
 ```
 
 > **当前状态：M0 仓库骨架。** 上述四项均未提交内容，因此当前没有可安装的扩展包。
@@ -23,6 +23,38 @@ brand/                     icon.svg / icon.png / social-preview.png（待设计�
 cd backend && go vet ./... && go test ./...
 cd ../../.. && ./scripts/prepare-package.sh
 ```
+
+## 品牌资产
+
+三张图由本仓库自行绘制，不走宿主 `scripts/brand/generate.mjs` 模板：模板把主色写死为
+SForum 主蓝 `#2671ed`，QQ 机器人需要自己的 QQ 蓝。矢量源是 `brand/icon.svg` 与
+`docs/brand/social-preview.svg`。
+
+- **配色**：底板渐变 `#1AC3F5 → #0B8CD6`（覆盖 QQ 官方蓝 `#12B7F5` 区间）；图形纯白
+  `#FFFFFF`；机器人五官用深一档的 `#0B8CD6`。与 SForum 主品牌 `#2671ED`（偏靛）相比
+  落在青蓝一侧，色相与明度都拉开，远看不会混。
+- **构图**：主体是白色对话气泡 + 机器人面孔（天线、双眼、微笑），代表 QQ 官方机器人；
+  右上角 45% 透明的圆角卡片（两道列表线）代表论坛主题帖。两块前后叠压，表达
+  “论坛 ↔ 机器人”的双向流转。16px 下只剩气泡轮廓与两点眼睛，仍可辨。
+- **版式**：社交卡沿用兄弟插件的排版密度 —— 眉标 `SFORUM · 扩展插件`、主标题、
+  项目名 `sforum-qq-bot`、一句话定位、包名版本行，左栏在 `x=792` 处用竖线分栏，
+  右侧 292×328 深色方块放主图形，底栏左侧 SForum 标识、右侧仓库 slug。
+
+重新导出（依赖本机有 `google-chrome` 与 Pillow）：
+
+```bash
+cd plugins/sforum.qq-bot
+google-chrome --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
+  --force-device-scale-factor=1 --default-background-color=00000000 \
+  --window-size=512,512 --screenshot=brand/icon.png "file://$PWD/brand/icon.svg"
+google-chrome --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
+  --force-device-scale-factor=1 --default-background-color=00000000 \
+  --window-size=1280,640 --screenshot=brand/social-preview.png \
+  "file://$PWD/docs/brand/social-preview.svg"
+python3 -c "from PIL import Image;[Image.open(p).convert('RGBA').save(p,format='PNG',optimize=True) for p in ['brand/icon.png','brand/social-preview.png']]"
+```
+
+宿主门禁：`cd ~/Code/github/SForum/apps/api && go run ./cmd/sforum extension brand check <包路径>`。
 
 ## 约定
 
