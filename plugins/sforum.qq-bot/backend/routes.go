@@ -235,7 +235,11 @@ func (p *plugin) messageSender() Sender {
 	return nil
 }
 
-// previewDraft 是预览的生效值：请求里缺哪一项就回落到已保存配置。
+// previewDraft 是预览的生效值：请求里**缺**哪一项才回落到已保存配置。
+//
+// Template 与 Signature 是 presence-aware 的：键在就按给的值渲染，空串就渲染空
+// （清空模板必须看到空预览，而不是旧模板的渲染结果）。MaxMessageChars 是例外，
+// 清单约定 0 表示沿用插件默认值，不是「不限长」。
 type previewDraft struct {
 	Template        string
 	Format          string
@@ -252,13 +256,13 @@ func resolvePreviewDraft(config Config, values map[string]any) previewDraft {
 		ExcerptLimit:    config.ExcerptLimit,
 		MaxMessageChars: config.MaxMessageChars,
 	}
-	if template := routeStringValue(values, "template"); template != "" {
+	if template, ok := routeStringPresent(values, "template"); ok {
 		draft.Template = template
 	}
 	if format := routeStringValue(values, "format"); format != "" {
 		draft.Format = normalizeFormat(format)
 	}
-	if signature := routeStringValue(values, "signature"); signature != "" {
+	if signature, ok := routeStringPresent(values, "signature"); ok {
 		draft.Signature = signature
 	}
 	if limit, ok := routeIntValue(values, "excerptLimit"); ok {
@@ -359,6 +363,26 @@ func routeStringValue(values map[string]any, key string) string {
 		return strings.TrimSpace(text)
 	}
 	return ""
+}
+
+// routeStringPresent 读一个字符串字段，并额外报告「这个键到底给没给」。
+//
+// 预览要区分「缺键」（回落已保存配置）与「键在但是空串」（按空串渲染），
+// routeStringValue 把两者都变成 ""，所以需要这个版本。null、非字符串一律按
+// 「没给」处理：schema 里这些字段就是 string。
+func routeStringPresent(values map[string]any, key string) (string, bool) {
+	if values == nil {
+		return "", false
+	}
+	raw, ok := values[key]
+	if !ok || raw == nil {
+		return "", false
+	}
+	text, isString := raw.(string)
+	if !isString {
+		return "", false
+	}
+	return strings.TrimSpace(text), true
 }
 
 // routeActorID 取调用者账号，取不到返回 0。

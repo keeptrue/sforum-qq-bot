@@ -679,6 +679,67 @@ func TestRoutePreviewMaxCharsZeroUsesDefault(t *testing.T) {
 	}
 }
 
+// preview：键在但是空串 → 真的渲染空，不再回落到已保存模板。
+func TestRoutePreviewEmptyTemplateRendersEmpty(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequest(t, routePreviewID, map[string]any{"template": ""}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	if text, _ := values["text"].(string); text != "" {
+		t.Fatalf("空模板应渲染空串，得到 %q", text)
+	}
+	unknown, ok := values["unknownVariables"].([]any)
+	if !ok || len(unknown) != 0 {
+		t.Fatalf("空模板不该报未知变量：%v", values["unknownVariables"])
+	}
+	if values["truncated"] != false {
+		t.Fatalf("空串不该标记 truncated：%v", values["truncated"])
+	}
+}
+
+// preview：空模板与「maxMessageChars=0 沿用默认上限」两条约定必须共存。
+func TestRoutePreviewEmptyTemplateKeepsMaxCharsConvention(t *testing.T) {
+	config := testConfig()
+	config.MaxMessageChars = 16
+	instance := newRouteTestPlugin(t, config, nil)
+
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequest(t, routePreviewID, map[string]any{"template": "", "maxMessageChars": 0}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	if text, _ := values["text"].(string); text != "" {
+		t.Fatalf("空模板应渲染空串，得到 %q", text)
+	}
+	if values["truncated"] != false {
+		t.Fatalf("空串没有可截断的内容，truncated 应为 false：%v", values["truncated"])
+	}
+}
+
+// preview：清空签名同样按空串渲染，而不是回落到已保存签名。
+func TestRoutePreviewEmptySignatureRendersEmpty(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequest(t, routePreviewID, map[string]any{
+			"template": "{{title}}|{{signature}}", "signature": "",
+		}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	text, _ := routeDocumentValues(t, response, previewOutputSchema)["text"].(string)
+	expected := sampleTemplateData("").Title + "|"
+	if text != expected {
+		t.Fatalf("空签名应渲染成空，得到 %q（期望 %q）", text, expected)
+	}
+	if strings.Contains(text, defaultSignature) {
+		t.Fatalf("不该回落到已保存签名：%q", text)
+	}
+}
+
 // test_push：空群、无凭据、正常三条路径。
 func TestRouteTestPushRejections(t *testing.T) {
 	sender := &fakeSender{}
