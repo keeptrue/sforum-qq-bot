@@ -11,6 +11,7 @@
 - **本页原则**：所有能力项均给出官方链接；官方文档没有写的地方一律标注 **「文档未覆盖」**，不臆造接口路径或参数名。
 - **路径与域名**：除 `getAppAccessToken` 外，所有 OpenAPI 的统一请求地址为 `https://api.bot.qq.com`（见 [API 调用指南](https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/api-call-guide.html)）。本文表格中的「路径」是相对于该基址的相对路径。
 - **鉴权头**：所有 OpenAPI 调用需带 `Authorization: QQBot {ACCESS_TOKEN}`（注意前缀是 `QQBot `，不是 `Bearer`）。
+- **扫码绑定（q.qq.com lite）**：不在本 wiki 的 API v2 覆盖范围内，来源与参数见 本文件 §11；该节内容来自腾讯官方 npm SDK，不是官方 wiki 文档。
 
 ---
 
@@ -677,6 +678,8 @@
 
 以下条目在官方 API v2 文档中**没有可用答案**，实现时必须按「未覆盖」处理，不得臆造：
 
+> 另有一类「wiki 没有、但官方 SDK 有」的接口：扫码绑定（`q.qq.com/lite/*`，见 本文件 §11）与 npm SDK 里的 QQ 机器人入口。它们同样没有 wiki 文档页，使用前按「平台可能变更」对待。
+
 | # | 条目 | 说明 |
 |---|---|---|
 | 1 | **编辑 / 修改已发消息**的接口路径与参数 | 索引中无该接口；仅错误码 `3000000~3999999 编辑消息错误`、`50049/50050/50051` 暗示能力存在 |
@@ -1067,3 +1070,97 @@ ok := ed25519.Verify(publicKey, msg.Bytes(), sig)
 - 其中 `develop/api-v2/**` 共 **192** 页（全部抓取并转文本），其余 **205** 页（含 FAQ、运营规范、三个语言 SDK 文档）同样抓取，用于交叉核对。
 - 逐页核对的重点章节：鉴权、事件订阅（WS/Webhook/payload）、消息收发概述、消息类型、消息子类型（markdown/ark/embed）、富媒体与素材、消息转换（emoji/msg-btn/text-chain）、频道消息（send/recall/format/event/dms）、`autogen` 接口索引与全部 `autogen/api/*`、`autogen/event/*` 页、`openapi/*` 页。
 - 快照时间以各页脚注「上次更新」为准，最新为 `2026-11-11`。官方文档会持续更新（本次抓取期间已见到 `2026-10-21`、`2026-10-28`、`2026-11-11` 等多次修订），**实现前建议重新核对本文标注的链接**。
+
+---
+
+## 11. 扫码绑定（q.qq.com lite）
+
+> **来源与风险（先读这段）**：本节**不是**官方 wiki 内容。端点、字段与二维码 URL 形态来自腾讯
+> 官方 npm 包 **`@tencent-connect/qqbot-connector@1.2.0`**（2026-11-18 读取其发布产物核对，
+> 见 <https://www.npmjs.com/package/@tencent-connect/qqbot-connector>）。官方 wiki
+> （`bot.q.qq.com/wiki`，本轮抓取 423 页）**没有这两个端点的文档页**，也没有版本兼容承诺，
+> 频控与错误码语义均未公开。平台可能随时调整字段或下线。
+> 因此 `sforum.qq-bot` 把基址、连接页与超时都做成可注入字段，失败一律降级为
+> 「可先手动填凭据」，且不把这两个端点当作推送链路的依赖。
+
+### 11.1 两个端点
+
+| 用途 | 方法与路径 | 基址 |
+|---|---|---|
+| 申请绑定任务 | `POST /lite/create_bind_task` | `https://q.qq.com` |
+| 轮询绑定结果 | `POST /lite/poll_bind_result` | `https://q.qq.com` |
+
+请求与响应都是 JSON，外层信封 `{ "retcode": 0, "msg": "...", "data": {...} }`；
+`retcode != 0` 即业务失败（本插件不重试，避免更快撞限流）。
+
+**申请绑定任务**
+
+```json
+// 请求
+{ "key": "<base64(32 字节 CSPRNG)>" }
+// 响应 data
+{ "task_id": "<string>" }
+```
+
+`key` 由调用方生成（32 字节 CSPRNG 的 base64），只在内存里保存。平台把它与这次二维码绑定，
+扫码完成后用它加密下发的凭据。`task_id` 是后续轮询的唯一凭据。
+
+**轮询绑定结果**
+
+```json
+// 请求
+{ "task_id": "<string>" }
+// 响应 data
+{ "status": 0, "bot_appid": "<string>", "bot_encrypt_secret": "<base64 密文>" }
+```
+
+| `status` | 含义 | 有效字段 |
+|---|---|---|
+| `0` | 未扫码 | — |
+| `1` | 已扫码，待手机侧确认 | — |
+| `2` | 已完成 | `bot_appid`、`bot_encrypt_secret` |
+| `3` | 已过期 | — |
+
+### 11.2 二维码内容
+
+```text
+https://q.qq.com/qqbot/openclaw/connect.html?task_id=<task_id>&source=<调用方标记>&_wv=2
+```
+
+手机 QQ 扫码后打开此页完成授权；`source` 是调用方标记（本插件传 `sforum`），`_wv=2` 按协议固定携带。
+参数顺序固定为 `task_id` → `source` → `_wv`。
+
+### 11.3 凭据解密（AES-256-GCM）
+
+```text
+key      = base64decode(create_bind_task 的 key)     // 32 字节，AES-256
+payload  = base64decode(data.bot_encrypt_secret)
+iv       = payload[0:12]                            // 12 字节 nonce
+tag      = payload[len(payload)-16:]                // 16 字节 GCM tag
+cipher   = payload[12:len(payload)-16]
+plain    = AES-256-GCM-Open(key, iv, cipher, tag)    // 无 AAD
+```
+
+`plain` 即 AppSecret。解不开或结果为空时**不要**写入设置：让运营重新生成二维码，
+避免把半成品凭据存进后台。本插件只用 Go 标准库 `crypto/aes` + `crypto/cipher` 实现，无第三方依赖。
+
+### 11.4 本插件对外映射（契约见 `schemas/bind-poll-output.json`）
+
+| 平台 `status` | 插件 `status` | 附带凭据 |
+|---|---|---|
+| `0` / `1` | `pending` | 无 |
+| `2` | `scanned` | `appId` + `appSecret`，**只此一次**；任务随即从内存表移除，再轮询得到 `expired` |
+| `3` | `expired` | 无 |
+
+`/bind/start` 返回的 `expiresInSeconds` 取插件侧任务 TTL（当前 10 分钟），与平台实际有效期
+不必完全相等；前端以它倒计时，到点提示「重新生成二维码」。
+
+### 11.5 明确「文档未覆盖」的部分
+
+| 条目 | 状态 |
+|---|---|
+| 两个端点的频控数值 | 未覆盖（只有 `retcode`） |
+| `retcode` / `msg` 的完整语义表 | 未覆盖；本插件只按 msg 关键词归类，其余给通用原因 |
+| 同一机器人重复绑定的语义 | 未覆盖（是否覆盖旧凭据未说明） |
+| 绑定是否影响线上机器人 / 是否触发平台审核 | 未覆盖 |
+| 二维码有效期 | 未覆盖；以 `task_id` 的实际失效为准，本插件按 10 分钟兜底 |

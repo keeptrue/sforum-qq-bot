@@ -125,3 +125,96 @@ QQ 开放平台的 AppID / AppSecret 只走后台设置页（`secret` 类型）�
    租约，还是交由运营者保证一个 App 只对一个站点？
 4. 入站回流是否应该默认关闭。默认开启意味着任何群成员发言都可能变成论坛内容，
    这在权限模型上是危险的。倾向默认关闭 + 显式关键词前缀 + 显式群白名单。
+
+## 10. M1.1 设计取舍与查证（扫码绑定 + 组件设置页）
+
+这一节记录 M1.1 的三个决定（扫码必须做组件、协议从哪来、契约为什么长这样）以及
+它们各自的**宿主源码依据**。行号是本轮（2026-11-18）在 `../SForum` 检出上核对的位置；
+宿主改版后以语义为准、行号会漂。
+
+### 10.1 为什么不能把二维码塞进「探测结果」
+
+最初的想法是：设置页加一个 `ai_tool_probe` 按钮，插件返回 ASCII 二维码，运营照着扫。
+两条宿主事实直接否掉了这条路：
+
+1. **探测结果只是一行纯文本**。宿主渲染探测返回值的地方是
+   `apps/web/app/components/extensions/settings/SFExtensionSettingsActions.vue:35-41`：
+   一个 `UAlert`，`:title` 取 `message || reason`、`:description` 取 `suggestions.join(' ')`。
+   没有 `<pre>`、不渲染图片、HTML 空白折叠——多行 ASCII 二维码会被压成一行乱码。
+2. **探测 runtime 的临时目录是 per-process 私有的**。
+   `apps/api/app/Support/Extensions/pluginprocess/sandbox_tempdir_linux.go:107`：
+   `dir := filepath.Join(paths.Root, fmt.Sprintf("%s-%d", sandboxNameSuffix(spec.PluginID), os.Getpid()))`
+   ——目录名里带 pid；`:116` 的注释还说明 exec 后 pid 不变、owner 记录与目录一起落地。
+   两次探测是两次独立进程，**不能**靠临时文件在 `start` 与 `poll` 之间传绑定任务；
+   而把整个绑定流程塞进一次探测又必然撞上 15 秒的探测总预算。
+
+结论：扫码必须由**设置页预构建组件**（浏览器里轮询）+ **插件自己的 HTTP 路由**（进程内状态）共同完成。
+AI 工具探测只保留给「预览 / 测试 / 状态」这类一次性读。
+
+### 10.2 协议来源与实现边界
+
+- 端点、字段与二维码 URL 形态来自腾讯官方 npm 包 `@tencent-connect/qqbot-connector@1.2.0`。
+  **官方 wiki 没有覆盖这两个接口**，因此 `docs/qq-api-v2-capabilities.md` 单独做了附录，
+  并标注「平台可能变更」。
+- Go 侧**零新增依赖**：AES-256-GCM 解密只用标准库 `crypto/aes` + `crypto/cipher`
+  （`backend/bind.go`：key = base64 解码的 32 字节，payload = base64 解码的密文，
+  前 12 字节 IV、末 16 字节 tag）。
+- 二维码在前端用 `uqr` 画成 SVG（`frontend/admin/src/bind-card.ts`），
+  Go 侧不引二维码库，也不生成图片。
+- 绑定任务只在内存里（`backend/bindstore.go`，TTL 10 分钟、有上限与限流），
+  进程重启即失效——这是刻意的：任务里带着解密 key，不该落盘。
+- 凭据只在 `completed` 那一次轮询里返回一次：`routeBindPoll` 取走即删，后续轮询看到 `expired`。
+  AppSecret 只写进宿主草稿（`setValue('app_secret', …, false)` 不写 input），保存后宿主掩码回空。
+
+### 10.3 组件模式对契约的影响
+
+- `settings.ui.mode = "component"` 时组件**整体替换** schema 表单
+  （`apps/web/app/pages/admin/extensions/[extensionId]/pages/[...pagePath].vue:383` 挂组件、`:407` 走表单），
+  所以 `fields` 必须保留且能独立工作：它是信任未批/组件加载失败时的回退。
+- 未授权时组件内部渲染「授权面板 + `#fallback` 插槽里的表单」
+  （`apps/web/app/components/extensions/settings/SFTrustedSettingsComponent.vue:305-312`），
+  运营看到的是「授权提示 + 完整表单」，功能不丢。
+- 组件模式下宿主**不渲染** `actions[]`，所以「测试推送 / 状态 / 预览」必须另走插件自己的
+  `routes[]`；同一批能力在 schema 回退路径上继续由 `ai_tool_probe` 提供（清单里三个 action
+  指向三个 AI 工具），两条路径共用同一份渲染与状态实现。
+- 路由授权：`guard: core.guard.permission` + `permission: sforum.qq-bot.manage`。
+  permission 为空即不可经 legacy 前缀代理
+  （`apps/api/app/Support/ExtensionManifest/route_access.go:18-77`），且该键必须在
+  `permissionDefinitions` 里声明（`v3_validate.go:153`）。`assignmentPolicy` 只能是 `"host"`
+  （`v3_validate_platform.go:705`），漏了清单直接 invalid。
+
+### 10.4 openapi 片段为什么是必需的
+
+`extension validate` 会为声明了 `routes[]` 的包构建路由 schema 目录
+（`apps/api/cmd/sforum/validate.go:97` → `preflightRouteSchemaCatalog`）。构建时：
+
+- 引用**不以 `.json` 结尾**（也就是契约式引用 `…@1`）时，只能从 OpenAPI 片段的
+  `components.schemas` 里取（`apps/api/app/Support/ExtensionOpenAPI/route_schema_catalog.go:525` 起：
+  非 `.json` 走 shared definitions，取不到就 `ErrRouteSchemaMissing`）；
+- 一旦声明了片段，**每条 addressable route 都必须出现在片段里**
+  （`apps/api/app/Support/ExtensionOpenAPI/aggregate.go:148`：`route … is missing from OpenAPI fragments`）。
+
+所以 `openapi/routes.yaml` 是契约的一部分，不是文档装饰：它把 5 条路由声明成 OpenAPI operation，
+再用 `components.schemas` 里的 `$ref` 指向 `schemas/*.json`。**schema 内容只有一份**（那 10 个 JSON），
+片段只负责「契约引用 → 文件」的绑定。删掉片段后 `validate` 会直接报
+`route schema catalog: … route schema is missing`（本轮已用反证实验确认）。
+
+### 10.5 前端产物：入库、可复现、node_modules 必须删
+
+- 宿主只读 `frontend/admin/dist`，**不编译源码**，所以 dist 必须随源码提交；
+  CI 会 `bun run build` 后 `git diff --exit-code` 比对，漂移即失败。
+- `node_modules` 必须在算摘要前**物理删除**：宿主算作者树摘要走 `DigestAuthorTree`（跳过它），
+  exact-artifact 校验走 `VerifiedTreeDigest`（不跳过），同一棵树上两边必然不一致，
+  报 `package digest mismatch after static inspection`。`prepare-package.sh` 与两个工作流都这么做。
+
+### 10.6 与任务书的偏差（实现事实，已回填到 plan 的 §13）
+
+| 任务书条目 | 实际实现 | 原因 |
+| --- | --- | --- |
+| F-14 合并窗口 60 秒 | 去重窗口 1 小时（`backend/dispatcher.go:16`，键 = deliveryId + topicId，命中记 `duplicate`） | 比 60 秒更严，覆盖「同一主题被重复投递」的主要场景；窗口可后续调小 |
+| F-15 日配额「触达即降级为摘要」 | 触顶后当日不再发送，投递记录写 `quota_exceeded`（`backend/dispatcher.go:183` 起 `deliver` → `allowDaily` 分支） | 摘要降级要再拉一次正文且收益不明显；停发更可预测，状态页能直接看到「触顶」这条记录 |
+| F-16 投递记录可导出 | 内存环 50 条（`backend/state.go:8`），状态页展示最近 10 条，无 CSV（F-33 P1 未做） | M1 只承诺「可查」；落盘与导出涉及宿主存储面，留到后续 |
+| F-13 事件开关清单 | 只订阅 `topic.created`，没有逐事件开关 | 本期只放行新主题（裁决 D3），开关本身没有第二个选项可切 |
+| F-04 接入模式选择 | 只实现长连接（用于群 ID 识别），HTTP 回调未做 | 群 ID 识别必须长连接在线；回调要公网入口，本期不需要 |
+| F-03 调试/正式目标分账 | 未实现 | 官方新版管理端已无沙箱环境概念，运营标签没有落点 |
+| F-30 审计 | 只到插件自己的投递记录，未接宿主审计 | 宿主审计面覆盖推送动作需要额外契约，M1 不做 |
