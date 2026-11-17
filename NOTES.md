@@ -3,6 +3,9 @@
 设计取舍、核对结论与踩过的坑。面向「下一个接手的人」，不是用户文档（那是
 `README.md`）也不是接手速查（那是 `AGENTS.md`）。
 
+> 后台反复提示「重新授权」、`backend.digest` 在两个值之间来回跳？先看 §11：
+> 那是宿主 dev 构建与本仓库发布构建的口径差异，不是 bug。
+
 ## 1. 为什么独立仓库，而不是放进 SForum 主仓库
 
 宿主主仓库已经有 `extensions/builtin/` 与 `extensions/optional/`。QQ 机器人不放进去，
@@ -56,9 +59,11 @@
 宿主按清单里的 `backend.digest` 与包内可执行文件的实际摘要做比对，对不上就拒绝启用。
 这带来两个必须记住的约束：
 
-1. 构建参数三处必须完全一致（宿主 dev watcher、`scripts/prepare-package.sh`、CI）：
-   `CGO_ENABLED=0 go build -trimpath -buildvcs=false`。任何一处不同，同一份源码在两边
-   产出不同字节，摘要永远不收敛。
+1. **编译参数**在本仓库三者之间必须一致（`scripts/prepare-package.sh`、`ci.yml`、`release.yml`）：
+   `CGO_ENABLED=0 go build -trimpath -buildvcs=false`，不带 `-ldflags`。但**摘要不跨环境相同**——
+   宿主 dev 构建带 `-ldflags=-s -w`，两个工作流又把 replace 重写成绝对路径，而本地脚本不钉
+   `GOTOOLCHAIN`（跟着本机 go1.27.1 跑，CI 按宿主 `go.mod` 钉在 go1.26.11）。dev/CI 与本地
+   制品摘要天然不同，属预期而非缺陷，三个变量的实测见 §11.3，处置与判据见 §11.4 / §11.5。
 2. **改了包内任何文件（含品牌图）都要重跑 `prepare-package.sh`**。摘要变了，旧的信任授权
    即失效，后台会显示「升级」，必须重新走一次「授权当前精确制品 → 确认并升级」。
    同版本号只改内容时，卡片上的「重启」不会切换制品——重启不是升级。
@@ -218,3 +223,138 @@ AI 工具探测只保留给「预览 / 测试 / 状态」这类一次性读。
 | F-04 接入模式选择 | 只实现长连接（用于群 ID 识别），HTTP 回调未做 | 群 ID 识别必须长连接在线；回调要公网入口，本期不需要 |
 | F-03 调试/正式目标分账 | 未实现 | 官方新版管理端已无沙箱环境概念，运营标签没有落点 |
 | F-30 审计 | 只到插件自己的投递记录，未接宿主审计 | 宿主审计面覆盖推送动作需要额外契约，M1 不做 |
+
+## 11. dev 制品摘要与 release 摘要天然不同（不要对齐，也别每轮当 bug 重查）
+
+### 11.1 现象
+
+后台里同一个插件反复出现「重启 → 需要授权 → 确认升级 → 又要重新授权」，
+`sforum.extension.json` 的 `backend.digest` 在两个值之间来回跳。看起来像摘要算错了。
+
+**它不是。** 同一份源码被两个构建者用不同的命令行各构建了一次：宿主 dev watcher
+在开发机上重建 `backend/plugin` 并回写清单摘要，我们的脚本与流水线按发布口径再建一次。
+字节不同 → 摘要不同 → 信任授权随制品失效。这是设计后果，不是缺陷。
+
+### 11.2 根因：三处构建口径差三个变量
+
+三处（宿主 dev watcher / `scripts/prepare-package.sh` / `.github/workflows/ci.yml`，发布工作流与
+ci 同口径）都带 `CGO_ENABLED=0`、`-trimpath`、`-buildvcs=false`。差别在三个变量上：
+`-ldflags`、replace 路径是否进 buildinfo、**Go 工具链版本**。下表的命令行逐字抄自对应文件
+（行号是 2026-11-18 在本机两份检出上核对的位置，宿主改版后会漂）：
+
+| 构建者 | 出处 | 实际命令行 | `-ldflags=-s -w` | replace 路径进 buildinfo | Go 工具链 |
+| --- | --- | --- | --- | --- | --- |
+| 宿主 dev watcher | `SForum/apps/api/app/Support/ExtensionPackage/dev_build.go:85`（`backendBuildArgs`；环境由 `:121` 的 `newBackendBuildPlan` 给出） | `CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags=-s -w -o backend/plugin.tmp ./` | **有** | 无（模块里有文件系统 replace 时改用临时 go.work） | `GOTOOLCHAIN=go1.26.11`，取自**插件** `backend/go.mod` 的 `go` 行 |
+| `scripts/prepare-package.sh:67` | | `(cd "$PKG/backend" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "$PKG/backend/plugin" ./)` | **无** | 有（相对路径 `=> ../../../../SForum/apps/api`） | **不钉**，用本机默认（本轮 `go version` = go1.27.1） |
+| `.github/workflows/ci.yml:179` | | `run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "$GITHUB_WORKSPACE/plugin/${PACKAGE_DIR}/backend/plugin" ./` | **无** | 有（绝对路径，`:164` 的 `go mod edit -replace` 重写） | `go-version-file: sforum/apps/api/go.mod`（`:80`）→ 宿主 `go 1.26.11` |
+
+发布工作流与 ci.yml 同口径（没有 `-ldflags`，同样重写 replace，同样读 `go-version-file`），
+差别只在 GOOS/GOARCH：`release.yml:230-232`（`go build` 在 `:232`；`go-version-file` 在 `:51`
+与 `:176`，`go mod edit -replace` 在 `:121` 与 `:181`）。
+
+`scripts/prepare-package.sh`、`ci.yml`、`release.yml` 里那**三处注释**在 2026-11-18 已按事实改正
+（此前它们都把「三处必须一致」偷换成「与宿主 dev 一致、一律不加 `-ldflags`」，会把后来人教坏）：
+现在写的是「不带 `-ldflags` 是发行口径、摘要不跨环境相同」。它们只点出了前两个变量，本节表格
+补上第三个：工具链。历史成因备查：宿主后来才补上两件事——`-ldflags=-s -w` 来自 `42c2a4483`
+（dev watcher 与 build.sh 产物对齐），`GOTOOLCHAIN` 钉到 `go.mod` 的 `go` 行 + 临时 go.work
+剔掉 replace 的文件系统路径来自 `1906f971f`。现在真正一致的只有**编译参数**（`CGO_ENABLED` /
+`-trimpath` / `-buildvcs=false` / 不带 `-ldflags`），摘要从来不是跨环境可对齐的量。
+
+**replace 路径与工具链两个变量都在改字节。** 两个工作流都把 replace 重写成绝对路径
+（`ci.yml:164`、`release.yml:121` 与 `:181` 的 `go mod edit -replace …="$GITHUB_WORKSPACE/sforum/apps/api"`），
+而 `prepare-package.sh` 保持 `go.mod` 里的相对路径；replace 目标会逐字进 buildinfo，`-trimpath`
+不处理它。工具链则更直接：`prepare-package.sh` 不钉 `GOTOOLCHAIN`，本机是 go1.27.1，而两个工作流
+按宿主 `go.mod` 钉在 go1.26.11（插件 `backend/go.mod` 的 `go` 行同样是 1.26.11，所以宿主 dev 与 CI
+在这一点上一致，只有本地脚本跟着机器跑）。所以**CI 算出的摘要天然不等于本地 `prepare-package.sh`
+的摘要**，宿主 dev 的摘要又天然不等于两者——这正是 `ci.yml:198-203` 那段「摘要与提交值不一致只发
+notice」存在的原因：不是构建命令写错，是这三个变量都在改字节，而 CI 钉的是宿主的 1.26.11。
+
+**结论：制品摘要由三个变量共同决定——`-ldflags`、replace 路径是否进 buildinfo、Go 工具链版本。**
+任意一个变了，摘要就整条换掉（§11.3 逐行实测）。所以「同一份源码应该算出同一个摘要」这个直觉
+只在一台机器、一条命令、一个工具链下成立；跨环境对齐要三个变量一起按住，值不值见 §11.4。
+
+### 11.3 差额实测：同一份源码的五个摘要（2026-11-18，linux/amd64）
+
+五个值都在本机测得，源码完全相同，每次只动一个变量。第 1 行是入库值，第 3 行是 CI 口径，
+第 4 行是宿主 dev 口径，第 2、5 行是受控对照：
+
+| 构建口径 | Go 工具链 | replace 形态 | `-ldflags` | 体积 | sha256 | buildinfo 里的 replace |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1. `prepare-package.sh`＝**当前入库值** | go1.27.1 | 相对 | 无 | 25,554,478 B | `f2b92b31218cf34f95fd68e838d3cdc717b18eb63cc406158892561a9b94be49` | `=> ../../../../SForum/apps/api` |
+| 2. 对照：只换工具链（其余同第 1 行） | **go1.26.11** | 相对 | 无 | 24,508,499 B | `8bf8b800195dc7503479a63d3cdbc06be471fde921ace7b737367e4301559d6b` | `=> ../../../../SForum/apps/api` |
+| 3. 两个工作流（CI / release 口径） | go1.26.11 | **绝对** | 无 | 24,508,499 B | `b3c6561d2924f2f785d43925216fca168f0a091d5bd53f996a762df8ea0b4176` | `=> /abs/…/SForum/apps/api` |
+| 4. 宿主 dev（go.work 无 replace 行） | go1.26.11 | 无（临时 go.work） | **`-s -w`** | 17,039,522 B | `eb1118c38ab4adb830f84ce1c318bdd52569052fdbe3df2e42c44ecaf7414390` | 整行缺失 |
+| 5. 对照：只加 `-ldflags=-s -w`（其余同第 3 行） | go1.26.11 | 绝对 | `-s -w` | 17,039,522 B | `8d21214330d9c87db61865a71375b1d961367cf3273e895d94c3925e76b335b4` | `=> /abs/…/SForum/apps/api` |
+
+读法：
+
+- **1 → 2 只换工具链**：摘要整条换掉，体积差 1,045,979 B。工具链不是「同一份代码换个版本也一样」的量。
+- **2 → 3 只换 replace 写法**：体积一模一样（24,508,499 B），摘要却不同——路径字符串只改 buildinfo
+  里的字节，不动代码段大小。
+- **3 → 5 只加 `-ldflags`**：体积从 24,508,499 B 掉到 17,039,522 B（少 7,468,977 B）；摘要同样整条换掉。
+- **4 与 5** 体积相同、摘要不同：第 4 行没有 replace 行，第 5 行有绝对路径那行——再次证明
+  「体积相同 ≠ 字节相同」。
+
+**replace 路径确实进 buildinfo，`-trimpath` 不处理它；工具链也逐字节体现在产物里。** 复现
+（三条都验过，全部不写包内文件）：
+
+```bash
+# 1) 入库二进制是谁写的：首行给工具链，grep 给 replace 形态
+go version -m plugins/sforum.qq-bot/backend/plugin | head -1
+#    plugin: go1.27.1                            ← 本机工具链（脚本不钉 GOTOOLCHAIN）
+go version -m plugins/sforum.qq-bot/backend/plugin | grep -F '=>'
+#    相对路径  => ../../../../SForum/apps/api   ← prepare-package.sh 的产物
+#    绝对路径  => /home/…/SForum/apps/api       ← 两个工作流的产物
+#    整行缺失                                   ← 宿主 dev 的产物（走临时 go.work）
+
+# 2) 只换工具链：原地构建、产物写 /tmp（相对 replace 只有在原位才解析得开）
+(cd plugins/sforum.qq-bot/backend && GOTOOLCHAIN=go1.26.11 CGO_ENABLED=0 \
+   go build -trimpath -buildvcs=false -o /tmp/plugin-g126 ./ && sha256sum /tmp/plugin-g126)
+#    期望 8bf8b800…（24,508,499 B），而不是入库的 f2b92b31…
+
+# 3) 再把 replace 改成绝对路径（等于两个工作流的做法），摘要又变
+cp -a plugins/sforum.qq-bot/backend /tmp/qqbot-abs
+sed -i "s#^replace github.com/keeptrue/sforum/apps/api v0.0.0 => .*#replace github.com/keeptrue/sforum/apps/api v0.0.0 => $(cd .. && pwd)/SForum/apps/api#" /tmp/qqbot-abs/go.mod
+(cd /tmp/qqbot-abs && GOTOOLCHAIN=go1.26.11 CGO_ENABLED=0 go build -trimpath -buildvcs=false -o plugin ./ && sha256sum plugin)
+#    期望 b3c6561d…（CI 口径）；再加 -ldflags="-s -w" 得到 8d212143…（第 5 行）
+```
+
+注意第 2 步为什么必须**原地**构建：`go.mod` 里是相对 replace（`../../../../SForum/apps/api`），
+把它整目录 `cp` 到 `/tmp` 之后相对路径就指不到了，构建会直接报
+`reading …/SForum/apps/api/go.mod: no such file or directory`。要么原地构建、产物外置，
+要么像第 3 步那样先改成绝对路径再搬。
+
+反向也验过：第 1 行那条命令在本机可逐字节复现（`f2b92b31…be49`，25,554,478 B），说明差异来自
+构建口径，不来自源码。
+
+### 11.4 正确处置：不对齐，也不改宿主
+
+**决策（YG，2026-11-18）：不改宿主仓库。** 两边约定的是「同一棵插件树由两个写者共同维护」，
+而不是「同一个二进制」。落地成三条**处置**（这里说的是怎么做，不是 §11.2 那三处文件注释）：
+
+1. 看到摘要不一致、后台要重新授权，先按 §11.5 分类；**不要**去调参数「对齐」。
+2. 真要两边逐字节一致，得把 §11.2 那三个变量同时按住，只有两条路：给本仓库的脚本与流水线
+   补 `-ldflags=-s -w`、把 `GOTOOLCHAIN` 钉到宿主的 1.26.11、再复刻临时 go.work 剔掉 replace
+   路径的逻辑；或者让宿主去掉 `-ldflags` 并改回相对 replace。两条都是改发布口径 / 改宿主，
+   代价远大于收益——dev 产物只在开发机上有效，交付与发版一律以 `release.yml` 构建的制品为准。
+3. 验收与发版判断只认 `scripts/prepare-package.sh` 重跑后的摘要。宿主 dev 构建覆盖出来的
+   那一份不进入任何交付结论。
+
+### 11.5 判据：一眼分清「正常 dev/release 差异」和「改了内容忘了重跑」
+
+1. **`git status --short plugins/` 输出为空** → 包树没被动过，摘要不一致只能来自构建口径，
+   是正常的 dev/release 差异，别管它。
+2. **输出非空**，或 `git diff` 里 `backend.digest` / `packageFiles[].digest` 变了却没有对应
+   内容改动 → 改了包内文件而没有重跑 `prepare-package.sh`。重跑脚本，然后走
+   「授权当前精确制品 → 确认并升级」。同版本号只改内容时，卡片上的「重启」不会切换制品。
+3. 想确认手上这份二进制是谁写的——两条命令，三种签名（体积是 2026-11-18 的实测值，
+   工具链/代码一变就跟着变，只看「哪种签名」不看绝对数）：
+
+   ```bash
+   go version -m plugins/sforum.qq-bot/backend/plugin | head -1        # 工具链
+   go version -m plugins/sforum.qq-bot/backend/plugin | grep -F '=>'   # replace 形态
+   ```
+
+   出现 `=> ../../../../SForum/apps/api`（相对）＝ `prepare-package.sh` 的产物，首行 `go1.27.1`，约 25.5 MB；
+   出现绝对路径 `=> /…/SForum/apps/api` ＝ 两个工作流（CI / release）的产物，首行 `go1.26.11`，约 24.5 MB；
+   整行不出现 ＝ 宿主 dev 的产物，首行 `go1.26.11`，约 17.0 MB（`-ldflags=-s -w` 已剥符号）。

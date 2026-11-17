@@ -59,9 +59,11 @@ if [ -d "$FRONTEND_DIR/node_modules" ]; then
   echo "==> 已剔除 node_modules（宿主 digest 会把它算进制品树）"
 fi
 
-# 与宿主 dev watcher（ExtensionPackage.BuildBackend）和 CI 同一组参数：
-# CGO_ENABLED=0 + -buildvcs=false，否则同一份源码在两边产出不同字节、摘要永不收敛。
-echo "==> 构建 backend/plugin（CGO_ENABLED=0，与宿主 dev 构建同参）"
+# 编译参数只有一组：CGO_ENABLED=0 + -trimpath + -buildvcs=false，不带 -ldflags；ci.yml / release.yml 必须同参。
+# 摘要不保证跨环境相同——宿主 dev 构建（ExtensionPackage/dev_build.go:85）带 -ldflags=-s -w，
+# 两个工作流还把 replace 重写成绝对路径。dev/CI 与本地制品摘要天然不同，属预期，不是 bug；
+# 别为「对齐摘要」给这里加 -ldflags。证据、复现命令与判据见 NOTES.md §11。
+echo "==> 构建 backend/plugin（CGO_ENABLED=0，与 ci.yml / release.yml 同参）"
 (cd "$PKG/backend" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "$PKG/backend/plugin" ./)
 
 echo "==> 刷新包摘要（extension digest --write）"

@@ -175,7 +175,7 @@ cd plugins/sforum.qq-bot/frontend/admin && bun install --frozen-lockfile && bun 
 # 回到仓库根，确认 dist 与提交内容一致（有输出就说明产物没提交或构建不可复现）
 git status --short plugins/sforum.qq-bot/frontend/admin/dist
 
-# 打包全链路：前端构建 → 后端同参构建 → digest --write → validate → brand check → test
+# 打包全链路：前端构建 → 后端构建（与 ci.yml / release.yml 同参）→ digest --write → validate → brand check → test
 ./scripts/prepare-package.sh
 ```
 

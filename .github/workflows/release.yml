@@ -224,8 +224,9 @@ jobs:
             --exclude '/frontend/admin/node_modules' \
             "plugin/$PACKAGE_DIR/" "$STAGE/"
 
-          # 构建参数必须与 prepare-package.sh / ci.yml / 宿主 dev 构建（ExtensionPackage/dev_build.go）
-          # 逐字一致：只允许 CGO_ENABLED + GOOS/GOARCH，不加 -ldflags（-s -w 会改字节 → 摘要对不上）。
+          # 编译参数与 prepare-package.sh / ci.yml 同参：CGO_ENABLED + GOOS/GOARCH + -trimpath +
+          # -buildvcs=false，不带 -ldflags。摘要不跨环境相同——宿主 dev 带 -ldflags=-s -w，且这里与
+          # ci.yml 都把 replace 重写为绝对路径，属预期而非 bug，见 NOTES.md §11。
           (cd "plugin/$PACKAGE_DIR/backend" && \
             CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
             go build -trimpath -buildvcs=false -o "$STAGE/backend/plugin" ./)

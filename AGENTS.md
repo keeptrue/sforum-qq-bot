@@ -86,8 +86,13 @@ go run ./cmd/sforum extension brand check ../../../sforum-qq-bot/plugins/sforum.
 3. **摘要不是装饰**：`backend.digest` 与每个 `packageFiles[].digest` 都参与 exact-artifact 校验；
    改了包内任何文件（含前端 dist、schema、openapi 片段、品牌图）都要重跑 `prepare-package.sh`。
    同版本号只改内容时，卡片上的「重启」不会切换制品，必须走「升级（授权当前精确制品 → 确认并升级）」。
-4. **构建参数三处必须一致**（宿主 dev watcher、`scripts/prepare-package.sh`、CI）：
-   `CGO_ENABLED=0 go build -trimpath -buildvcs=false`。任何一处不同，同一份源码的摘要就不同。
+4. **编译参数三者必须一致**（`scripts/prepare-package.sh`、`ci.yml`、`release.yml`）：
+   `CGO_ENABLED=0 go build -trimpath -buildvcs=false`，**不带** `-ldflags`。摘要不跨环境相同：
+   宿主 dev watcher（`ExtensionPackage/dev_build.go:85`）带 `-ldflags=-s -w`，两个工作流还把
+   replace 重写成绝对路径；工具链也是变量——CI 按 `go-version-file: sforum/apps/api/go.mod`
+   钉在 Go 1.26.11，而 `prepare-package.sh` 不钉 `GOTOOLCHAIN`、跟着本机跑（当前 1.27.1）。
+   所以 dev/CI 制品与本地制品摘要天然不同，属预期、不是 bug。别为「对齐摘要」加 `-ldflags`，
+   也别去钉工具链。判据见 `NOTES.md` §11。
 5. **`backend/go.mod` 的 `go` 指令不得低于宿主 `apps/api/go.mod`**：插件是 replace 进宿主
    模块构建的，低了只会得到一句 `updates to go.mod needed`。
 6. **契约引用与 openapi 片段必须成对**：路由的 `requestSchema` / `responseSchema` 用

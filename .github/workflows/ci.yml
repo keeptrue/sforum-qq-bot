@@ -173,7 +173,9 @@ jobs:
       - name: Build plugin binary (host platform)
         if: steps.detect.outputs.backend == 'ready'
         working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
-        # 与宿主 dev 构建（ExtensionPackage.BuildBackend）同一组参数：摘要只由源码决定。
+        # 编译参数与 prepare-package.sh / release.yml 同参（不带 -ldflags）。摘要不跨环境相同：
+        # 宿主 dev 构建带 -ldflags=-s -w，本步骤上面的 go mod edit 又把 replace 改成绝对路径，
+        # 所以这里算出的摘要天然不同于本地制品，属预期，见 NOTES.md §11。
         run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "$GITHUB_WORKSPACE/plugin/${PACKAGE_DIR}/backend/plugin" ./
 
       - name: Cross-compile smoke (rest of the release matrix)
