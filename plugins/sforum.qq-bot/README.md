@@ -1,32 +1,51 @@
 # sforum.qq-bot
 
-SForum 扩展包：让论坛与 QQ 双向联动（站内内容推送到 QQ 群，QQ 侧发言按规则回流论坛）。
+SForum 扩展包（Manifest V3 + Protocol V2）：把论坛新主题推送到 QQ 群，支持手机 QQ
+扫码绑定机器人凭据，设置页由预构建组件提供（含模板实时预览）。
 
-面向使用者的完整说明（安装、配置）见仓库根 `README.md`；设计取舍与踩坑记录见仓库根
-`NOTES.md`，宿主约束与开发约定见 `AGENTS.md`。
+面向运营者的安装、配置与排错说明见仓库根 `README.md`；设计取舍与查证记录见 `NOTES.md`；
+仓库约定与开发流程见 `AGENTS.md`。
 
 ## 包内结构
 
 ```text
-sforum.extension.json      Manifest V3（待落地）
-manifest/langs/            zh-CN / en-US 的扩展名与描述（待落地）
-backend/                   Protocol V2 服务（独立 Go module，待落地）
-brand/                     icon.svg / icon.png / social-preview.png（已交付）
+sforum.extension.json      Manifest V3：events / routes / 权限 / aiTools / packageFiles
+manifest/settings.json     设置页 schema（ui.mode=component，字段同时作为表单回退）
+manifest/langs/            zh-CN / en-US 的扩展名与描述
+schemas/                   契约真源：10 个路由 schema + 2 个事件 schema
+openapi/routes.yaml        路由片段：把 …@1 契约引用绑到 schemas/*.json
+backend/                   Protocol V2 服务（独立 Go module，Go 侧零第三方依赖）
+frontend/admin/            设置页组件（Vite + TypeScript，src 与 dist 都入库）
+brand/                     icon.svg / icon.png / social-preview.png
 ```
 
-> **当前状态：M0 仓库骨架。** 品牌资产已交付并入库；仅 `sforum.extension.json`、
-> `manifest/langs/` 与 `backend/` 三项尚未落地，因此当前没有可安装的扩展包。
-> 目录先占位是为了让 CI、打包脚本与发布流水线的路径在业务代码落地前就固定下来。
+## 它做什么
 
-## 快速验证
+- 观察宿主 `topic.created`，按模板渲染后推送到群白名单；摘要走 HostQuery，不读宿主数据库。
+- 手机 QQ 扫码一键绑定：插件出码 → 轮询 → AES-256-GCM 解密，AppID / AppSecret 自动写回设置。
+- 群 ID 自动识别：长连接记下 `group_openid`，设置页「推送状态」里可直接复制。
+- 设置页预构建组件：扫码卡片、模板变量点选、实时预览、底部预览 / 测试 / 状态。
+- 组件未授权时宿主回退声明式表单，功能不丢（少二维码与实时预览）。
 
-> **骨架期说明**：`backend/` 下还没有 `go.mod`，`prepare-package.sh` 会以 exit 1
-> 明确提示缺什么。本节自 **M2（清单与后端落地那一步）起可用**，届时再照此执行。
+本期未实现：QQ → 论坛的入站回流、频道与单聊分支、投递记录导出 CSV。
+
+## 本地构建与验证
 
 ```bash
-cd backend && go vet ./... && go test ./...
-cd ../../.. && ./scripts/prepare-package.sh
+# 后端单测（在仓库根执行）
+cd plugins/sforum.qq-bot/backend && go vet ./... && go test ./...
+
+# 设置页组件（在仓库根执行）：dist 必须入库，宿主不编译前端源码
+cd plugins/sforum.qq-bot/frontend/admin && bun install --frozen-lockfile && bun run build
+
+# 打包全链路（在仓库根执行）：前端构建 → 后端构建 → digest --write → validate → brand check → test
+./scripts/prepare-package.sh
 ```
+
+改包内任何文件（含 `frontend/admin/dist`、schema、openapi 片段、品牌图）都要重跑
+`prepare-package.sh`：摘要写进清单，宿主按 exact-artifact 校验。脚本会在算摘要前物理删除
+`frontend/admin/node_modules`——宿主算作者树摘要时跳过它、exact-artifact 校验不跳过，
+留着必然报 `package digest mismatch after static inspection`。
 
 ## 品牌资产
 
@@ -64,4 +83,7 @@ python3 -c "from PIL import Image;[Image.open(p).convert('RGBA').save(p,format='
 
 - 扩展 id 固定为 `sforum.qq-bot`，包目录名与清单 `id` 必须一致。
 - 凭据（AppID / AppSecret）只进后台设置页，不写进清单或仓库。
-- 改任何包内文件（含品牌图）都要重跑 `prepare-package.sh`：宿主按 exact-artifact 校验摘要。
+- 路由的 `…@1` 契约引用必须同时落在 `schemas/*.json` 与 `openapi/routes.yaml` 的
+  `components.schemas`，且每条路由都要在片段里有 operation；缺一个 `extension validate`
+  就报 `route schema catalog: … route schema is missing`。
+- 发布前核对清单 `version` 与 tag 一致。

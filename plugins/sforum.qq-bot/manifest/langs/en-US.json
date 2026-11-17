@@ -1,0 +1,4 @@
+{
+  "name": "SForum QQ Bot",
+  "description": "Push new forum topics to QQ groups with a custom message template, automatic group ID discovery, rate limiting, and retries."
+}

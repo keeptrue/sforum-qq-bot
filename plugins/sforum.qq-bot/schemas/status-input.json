@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.status.input@1",
+  "title": "qq bot status request: empty, status is read from the stored settings",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

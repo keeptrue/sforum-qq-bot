@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.bind.poll.output@1",
+  "title": "qq bot bind/poll response: scan progress, and the credentials exactly once",
+  "type": "object",
+  "required": ["status"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["pending", "scanned", "expired"],
+      "description": "pending means the platform has no result yet, so there is nothing to save; scanned means the binding completed and this same response carries appId and appSecret (there is no separate 'scanned but unconfirmed' state); expired means the task can no longer complete, because the QR code expired or the credentials were already taken by an earlier poll."
+    },
+    "appId": {
+      "type": "string",
+      "description": "Bot AppID, present only once the binding completed."
+    },
+    "appSecret": {
+      "type": "string",
+      "description": "Bot AppSecret, returned exactly once together with appId so the component can save it; never logged or echoed again."
+    }
+  },
+  "additionalProperties": false
+}

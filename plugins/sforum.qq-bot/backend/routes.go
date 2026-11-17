@@ -1,0 +1,376 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	pluginv2 "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2"
+	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
+	protocolwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/protocol/v2"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+// 与清单 routes[]、schemas/ 逐字一致的契约常量。清单由 pm 维护，这里只读地镜像
+// 同一批字符串：任何一侧改动都必须同步。
+const (
+	routeBindStartID = "sforum.qq-bot.route.bind_start"
+	routeBindPollID  = "sforum.qq-bot.route.bind_poll"
+	routePreviewID   = "sforum.qq-bot.route.preview"
+	routeTestPushID  = "sforum.qq-bot.route.test_push"
+	routeStatusID    = "sforum.qq-bot.route.status"
+
+	bindStartOutputSchema = "sforum.qq-bot.bind.start.output@1"
+	bindPollOutputSchema  = "sforum.qq-bot.bind.poll.output@1"
+	previewOutputSchema   = "sforum.qq-bot.preview.output@1"
+	testPushOutputSchema  = "sforum.qq-bot.test_push.output@1"
+	statusOutputSchema    = "sforum.qq-bot.status.output@1"
+
+	bindStartInputSchema = "sforum.qq-bot.bind.start.input@1"
+	bindPollInputSchema  = "sforum.qq-bot.bind.poll.input@1"
+	previewInputSchema   = "sforum.qq-bot.preview.input@1"
+	testPushInputSchema  = "sforum.qq-bot.test_push.input@1"
+	statusInputSchema    = "sforum.qq-bot.status.input@1"
+)
+
+// 路由侧的可读拒绝文案。它们只出现在 ErrorDetail 或 {ok:false, message} 里，
+// 绝不包含任何凭据。
+const (
+	messageBindUnavailable = "扫码绑定服务尚未就绪，请重启插件后再试，或直接手动填写凭据。"
+	messageBindRateLimited = "扫码绑定请求过于频繁，请稍后再试。"
+	messageBindTaskMissing = "缺少 taskId，请先调用 /bind/start 生成二维码。"
+)
+
+// routeContentTypeJSON 是路由响应的媒体类型。
+//
+// 宿主按 RouteResponse.Headers 原样写进 HTTP 响应，插件不声明就落到 fiber 的默认
+// text/plain；浏览器随即把 JSON body 当字符串返回，前端 $fetch 拿到的是 string 而
+// 不是 {text}，组件只能当成失败。所有出口（成功与错误）都必须带上它。
+const routeContentTypeJSON = "application/json; charset=utf-8"
+
+// InvokeRoute 覆盖嵌入的 pluginv2.Server 默认实现（默认返回 Unimplemented）。
+// 五条扩展路由都在这里分发：组件模式下宿主不渲染 actions[]，测试推送、状态与
+// 模板预览只能走插件自己的路由。
+func (p *plugin) InvokeRoute(ctx context.Context, request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
+	switch request.GetRouteId() {
+	case routeBindStartID:
+		return p.routeBindStart(ctx, request)
+	case routeBindPollID:
+		return p.routeBindPoll(ctx, request)
+	case routePreviewID:
+		return p.routePreview(request)
+	case routeTestPushID:
+		return p.routeTestPush(ctx, request)
+	case routeStatusID:
+		return p.routeStatus(request)
+	default:
+		return routeFailure(request, http.StatusNotFound,
+			protocolwire.ErrorCode_ERROR_CODE_NOT_FOUND, "qq_bot.route_unknown",
+			"未声明的 QQ 机器人路由"), nil
+	}
+}
+
+// routeBindStart 申请一个扫码绑定任务，返回二维码内容与有效期。
+func (p *plugin) routeBindStart(ctx context.Context, request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
+	if p.bind == nil || p.bindStore == nil {
+		return routeFailure(request, http.StatusServiceUnavailable,
+			protocolwire.ErrorCode_ERROR_CODE_UNAVAILABLE, "qq_bot.bind_unavailable", messageBindUnavailable), nil
+	}
+	if wait := p.bindStore.AllowStart(); wait > 0 {
+		seconds := int(math.Ceil(wait.Seconds()))
+		if seconds < 1 {
+			seconds = 1
+		}
+		return routeFailure(request, http.StatusTooManyRequests,
+			protocolwire.ErrorCode_ERROR_CODE_RATE_LIMITED, "qq_bot.bind_rate_limited",
+			fmt.Sprintf("%s（约 %d 秒后可再试）", messageBindRateLimited, seconds)), nil
+	}
+	task, err := p.bind.CreateBindTask(ctx)
+	if err != nil {
+		// 上游失败不消耗配额：限流挡的是「建任务」这个动作，不是网络抖动。
+		p.bindStore.RefundStart()
+		p.log.Warnf("qq-bot: 新建扫码绑定任务失败：%s", bindAdminMessage(err))
+		return routeFailure(request, http.StatusBadGateway,
+			protocolwire.ErrorCode_ERROR_CODE_UNAVAILABLE, "qq_bot.bind_start_failed", bindAdminMessage(err)), nil
+	}
+	p.bindStore.Put(task.TaskID, task.Key)
+	return p.routeDocument(request, bindStartOutputSchema, map[string]any{
+		"taskId":           task.TaskID,
+		"connectUrl":       task.ConnectURL,
+		"expiresInSeconds": int(p.bindStore.TTL() / time.Second),
+	})
+}
+
+// routeBindPoll 查询扫码进度。轮询可以反复读，但凭据只交付一次：一旦拿到
+// appSecret 立即从任务表取走，重复轮询只会看到 expired。
+func (p *plugin) routeBindPoll(ctx context.Context, request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
+	if p.bind == nil || p.bindStore == nil {
+		return routeFailure(request, http.StatusServiceUnavailable,
+			protocolwire.ErrorCode_ERROR_CODE_UNAVAILABLE, "qq_bot.bind_unavailable", messageBindUnavailable), nil
+	}
+	taskID := routeStringValue(routeBody(request), "taskId")
+	if taskID == "" {
+		return routeFailure(request, http.StatusBadRequest,
+			protocolwire.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "qq_bot.bind_task_missing", messageBindTaskMissing), nil
+	}
+	key, found := p.bindStore.Key(taskID)
+	if !found {
+		return p.routeDocument(request, bindPollOutputSchema, bindPollDocument(bindStatusExpired, "", ""))
+	}
+	result, err := p.bind.PollBindTask(ctx, taskID, key)
+	if err != nil {
+		p.log.Warnf("qq-bot: 轮询扫码绑定结果失败：%s", bindAdminMessage(err))
+		return routeFailure(request, http.StatusBadGateway,
+			protocolwire.ErrorCode_ERROR_CODE_UNAVAILABLE, "qq_bot.bind_poll_failed", bindAdminMessage(err)), nil
+	}
+	if result.Status != bindStatusScanned {
+		if result.Status == bindStatusExpired {
+			p.bindStore.Delete(taskID)
+		}
+		return p.routeDocument(request, bindPollOutputSchema,
+			bindPollDocument(result.Status, "", ""))
+	}
+	// 成功只此一次：以 Take 的结果为准，而不是本地的轮询结果。两个并发轮询都拿到
+	// 同一份凭据时，只有抢到任务的那个能交付，另一个回报 expired。
+	if _, owned := p.bindStore.Take(taskID); !owned {
+		return p.routeDocument(request, bindPollOutputSchema, bindPollDocument(bindStatusExpired, "", ""))
+	}
+	return p.routeDocument(request, bindPollOutputSchema,
+		bindPollDocument(bindStatusScanned, result.AppID, result.AppSecret))
+}
+
+// routePreview 只渲染，不发送、不查 HostQuery：预览 runtime 拿不到 host token，
+// 也不该为了一次预览去读论坛正文。
+func (p *plugin) routePreview(request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
+	rendered := p.renderPreview(resolvePreviewDraft(p.cfg, routeBody(request)))
+	// structpb 只认 []any；空切片也要给，否则 JSON 里是 null 而不是 []。
+	unknown := make([]any, 0, len(rendered.Unknown))
+	for _, name := range rendered.Unknown {
+		unknown = append(unknown, name)
+	}
+	return p.routeDocument(request, previewOutputSchema, map[string]any{
+		"text":             rendered.Text,
+		"truncated":        rendered.Truncated,
+		"unknownVariables": unknown,
+	})
+}
+
+// renderPreview 是预览的唯一渲染入口：路由与设置页工具共用，保证同一份草稿在
+// 两处得到逐字相同的结果。
+func (p *plugin) renderPreview(draft previewDraft) Rendered {
+	return Render(draft.Template, sampleTemplateDataFor(draft.Signature, draft.ExcerptLimit), RenderOptions{
+		Format: draft.Format, MaxChars: draft.MaxMessageChars, Warnf: p.log.Warnf,
+	})
+}
+
+// routeTestPush 用**已保存配置**发一条样例到白名单第一个群。群为空或凭据缺失
+// 都返回 ok:false 与可读原因——这不是异常，是管理员还没配完。
+func (p *plugin) routeTestPush(ctx context.Context, request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
+	config := p.cfg
+	rendered := Render(config.MessageTemplate, sampleTemplateDataFor(config.Signature, config.ExcerptLimit), RenderOptions{
+		Format: config.MessageFormat, MaxChars: config.MaxMessageChars, Warnf: p.log.Warnf,
+	})
+	var report strings.Builder
+	report.WriteString(rendered.Text)
+	report.WriteString("\n\n—— 发送结果 ——\n")
+
+	ok := false
+	sender := p.messageSender()
+	switch {
+	case len(config.GroupIDs) == 0:
+		report.WriteString("未发送：群白名单是空的，请先填写至少一个群 ID。")
+	case !config.CredentialsConfigured():
+		report.WriteString("未发送：尚未配置 AppID / AppSecret。")
+	case sender == nil:
+		report.WriteString("未发送：QQ 客户端未初始化。")
+	default:
+		target := config.GroupIDs[0]
+		result, err := sender.SendGroupMessage(ctx, target, rendered.Text, config.MessageFormat)
+		if err != nil {
+			fmt.Fprintf(&report, "发送失败：%s", adminReason(err))
+		} else {
+			ok = true
+			fmt.Fprintf(&report, "已发送到群 %s（message id %s…）", maskGroupID(target), messageIDPrefix(result.MessageID))
+		}
+	}
+	return p.routeDocument(request, testPushOutputSchema, map[string]any{
+		"ok": ok, "message": report.String(),
+	})
+}
+
+// routeStatus 复用设置页工具的状态文本，保持两条入口看到同一份事实。
+func (p *plugin) routeStatus(request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
+	return p.routeDocument(request, statusOutputSchema, map[string]any{"text": p.renderStatus()})
+}
+
+// messageSender 是投递出口：生产是 *QQClient，测试注入假实现。
+func (p *plugin) messageSender() Sender {
+	if p == nil {
+		return nil
+	}
+	if p.sender != nil {
+		return p.sender
+	}
+	if p.client != nil {
+		return p.client
+	}
+	return nil
+}
+
+// previewDraft 是预览的生效值：请求里缺哪一项就回落到已保存配置。
+type previewDraft struct {
+	Template        string
+	Format          string
+	Signature       string
+	ExcerptLimit    int
+	MaxMessageChars int
+}
+
+func resolvePreviewDraft(config Config, values map[string]any) previewDraft {
+	draft := previewDraft{
+		Template:        config.MessageTemplate,
+		Format:          config.MessageFormat,
+		Signature:       config.Signature,
+		ExcerptLimit:    config.ExcerptLimit,
+		MaxMessageChars: config.MaxMessageChars,
+	}
+	if template := routeStringValue(values, "template"); template != "" {
+		draft.Template = template
+	}
+	if format := routeStringValue(values, "format"); format != "" {
+		draft.Format = normalizeFormat(format)
+	}
+	if signature := routeStringValue(values, "signature"); signature != "" {
+		draft.Signature = signature
+	}
+	if limit, ok := routeIntValue(values, "excerptLimit"); ok {
+		draft.ExcerptLimit = limit
+	}
+	// 清单 preview.input 约定：0 表示沿用插件默认值，而不是「不限长」。
+	if limit, ok := routeIntValue(values, "maxMessageChars"); ok && limit > 0 {
+		draft.MaxMessageChars = limit
+	}
+	return draft
+}
+
+// sampleTemplateDataFor 在样例数据上叠加草稿的摘要长度：把「摘要长度上限」调小，
+// 预览里能立刻看到截断，而不是等到真实推送。
+func sampleTemplateDataFor(signature string, excerptLimit int) TemplateData {
+	data := sampleTemplateData(signature)
+	data.Excerpt = BuildExcerpt(data.Excerpt, excerptLimit)
+	return data
+}
+
+func bindPollDocument(status, appID, appSecret string) map[string]any {
+	return map[string]any{"status": status, "appId": appID, "appSecret": appSecret}
+}
+
+// routeJSONResponse 是路由响应的唯一出口：成功与错误都从这里出去，因此
+// Content-Type 不可能被漏掉。新增路由请只走 routeDocument / routeFailure。
+func routeJSONResponse(
+	request *pluginwire.RouteRequest,
+	status int,
+	document *protocolwire.TypedDocument,
+	detail *protocolwire.ErrorDetail,
+) *pluginwire.RouteResponse {
+	return &pluginwire.RouteResponse{
+		Context:    routeResponseContext(request.GetContext()),
+		StatusCode: uint32(status),
+		// 单值 Content-Type：宿主逐个 Add 进 HTTP 响应头。
+		Headers: []*protocolwire.Header{{
+			Name:   "Content-Type",
+			Values: []string{routeContentTypeJSON},
+		}},
+		Body:  document,
+		Error: detail,
+	}
+}
+
+// routeDocument 把值绑到声明的 schema 上。schema ref 必须与清单逐字一致，否则
+// 宿主按 exact-ref 校验会直接拒绝这份响应。
+func (p *plugin) routeDocument(request *pluginwire.RouteRequest, schemaRef string, values map[string]any) (*pluginwire.RouteResponse, error) {
+	document, err := pluginv2.NewTypedDocument(schemaRef, values)
+	if err != nil {
+		return nil, err
+	}
+	return routeJSONResponse(request, http.StatusOK, document, nil), nil
+}
+
+// routeFailure 拼一条可读拒绝。Code 决定宿主侧 HTTP 映射，Message 直接给管理员看；
+// 响应体为空，但 Content-Type 依然声明 JSON，客户端可以无条件按 JSON 解析。
+func routeFailure(request *pluginwire.RouteRequest, status int, code protocolwire.ErrorCode, reason, message string) *pluginwire.RouteResponse {
+	return routeJSONResponse(request, status, nil, &protocolwire.ErrorDetail{
+		Code: code, Reason: reason, Message: message,
+	})
+}
+
+// routeResponseContext 回填与请求完全一致的 context：宿主会逐字段比对 request_id、
+// trace 与 extension 身份，并拒绝缺失 server_time 的响应。
+func routeResponseContext(request *protocolwire.RequestContext) *protocolwire.ResponseContext {
+	response := &protocolwire.ResponseContext{ServerTime: timestamppb.New(time.Now().UTC())}
+	if request == nil {
+		return response
+	}
+	response.RequestId = request.GetRequestId()
+	if trace := request.GetTrace(); trace != nil {
+		response.Trace = proto.Clone(trace).(*protocolwire.TraceContext)
+	}
+	if extension := request.GetExtension(); extension != nil {
+		response.Extension = proto.Clone(extension).(*protocolwire.ExtensionIdentity)
+	}
+	return response
+}
+
+// routeBody 读请求体的 map 形态；没有 body 时返回 nil，取值函数对 nil 宽容。
+func routeBody(request *pluginwire.RouteRequest) map[string]any {
+	if request.GetBody() == nil {
+		return nil
+	}
+	return pluginv2.TypedDocumentValues(request.GetBody())
+}
+
+func routeStringValue(values map[string]any, key string) string {
+	if values == nil {
+		return ""
+	}
+	raw, ok := values[key]
+	if !ok || raw == nil {
+		return ""
+	}
+	if text, ok := raw.(string); ok {
+		return strings.TrimSpace(text)
+	}
+	return ""
+}
+
+// routeIntValue 读一个非负整数。structpb 把数字统一成 float64，但也接受字符串，
+// 免得前端换一种序列化就整段回落到默认值。
+func routeIntValue(values map[string]any, key string) (int, bool) {
+	if values == nil {
+		return 0, false
+	}
+	raw, ok := values[key]
+	if !ok || raw == nil {
+		return 0, false
+	}
+	switch typed := raw.(type) {
+	case float64:
+		if typed < 0 || math.IsNaN(typed) || math.IsInf(typed, 0) {
+			return 0, false
+		}
+		return int(typed), true
+	case string:
+		value, err := strconv.Atoi(strings.TrimSpace(typed))
+		if err != nil || value < 0 {
+			return 0, false
+		}
+		return value, true
+	default:
+		return 0, false
+	}
+}

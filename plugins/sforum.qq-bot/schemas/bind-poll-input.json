@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.bind.poll.input@1",
+  "title": "qq bot bind/poll request: which binding task to poll",
+  "type": "object",
+  "required": ["taskId"],
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "Task id returned by /bind/start."
+    }
+  },
+  "additionalProperties": false
+}

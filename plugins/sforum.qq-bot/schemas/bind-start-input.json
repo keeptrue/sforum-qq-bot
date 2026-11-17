@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.bind.start.input@1",
+  "title": "qq bot bind/start request: empty, the plugin mints the binding key itself",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

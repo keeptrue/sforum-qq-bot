@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 1,
+  "ui": {
+    "mode": "component",
+    "layout": "form",
+    "component": {
+      "id": "settings",
+      "apiVersion": 1,
+      "entry": "frontend/admin/dist/settings.mjs",
+      "css": "frontend/admin/dist/settings.css"
+    },
+    "groups": [
+      {
+        "id": "connection",
+        "label": { "zh-CN": "连接", "en-US": "Connection" },
+        "description": {
+          "zh-CN": "QQ 机器人应用凭据。没有凭据时插件照常加载，但不会发出任何消息。",
+          "en-US": "Credentials for the QQ bot application. Without them the plugin still loads but never sends a message."
+        },
+        "columns": 2
+      },
+      {
+        "id": "targets",
+        "label": { "zh-CN": "推送目标", "en-US": "Delivery targets" },
+        "description": {
+          "zh-CN": "推送到哪些群、哪些分类，以及什么时候停。",
+          "en-US": "Which groups and categories get pushed, and when to stop."
+        },
+        "columns": 2
+      },
+      {
+        "id": "template",
+        "label": { "zh-CN": "消息模板", "en-US": "Message template" },
+        "description": {
+          "zh-CN": "一条推送长什么样。改完保存即可，下一次推送就生效。",
+          "en-US": "What one push looks like. Saved changes apply to the next push."
+        },
+        "columns": 2
+      },
+      {
+        "id": "limits",
+        "label": { "zh-CN": "限速与重试", "en-US": "Rate limits and retries" },
+        "description": {
+          "zh-CN": "QQ 侧对主动消息有频控与日额度，这一组是插件侧的护栏。",
+          "en-US": "QQ rate limits and daily quotas proactive messages; this group is the plugin-side guardrail."
+        },
+        "columns": 2
+      },
+      {
+        "id": "probe",
+        "label": { "zh-CN": "测试", "en-US": "Test" },
+        "description": {
+          "zh-CN": "用当前草稿值预览或试发一条，或查看推送状态。三个按钮都在页面底部。",
+          "en-US": "Preview or send one test message with the draft values, or inspect delivery status. All three buttons sit at the page footer."
+        },
+        "columns": 1
+      }
+    ],
+    "callouts": [
+      {
+        "id": "group-id-is-not-group-number",
+        "tone": "warning",
+        "title": {
+          "zh-CN": "群 ID 不是群号",
+          "en-US": "A group ID is not a group number"
+        },
+        "body": {
+          "zh-CN": "群 ID 是机器人视角的 group_openid，与你在 QQ 里看到的群号完全不同，抄错一个字符就会发不出去。打开「启用群 ID 自动识别」后，把机器人拉进群、或在群里 @ 它一次，再点页面底部的「推送状态」，就能看到并复制识别到的群 ID。没拿到群 ID 之前，推送不会发生。",
+          "en-US": "A group ID is the bot-side group_openid and has nothing to do with the group number you see in QQ; one wrong character and delivery fails. With \"Discover group IDs automatically\" on, add the bot to the group or mention it there once, then press Delivery status at the page footer to see and copy the discovered ID. No group ID means no push."
+        },
+        "group": "targets"
+      },
+      {
+        "id": "qq-platform-prerequisites",
+        "tone": "warning",
+        "title": {
+          "zh-CN": "QQ 侧还有三个前置条件",
+          "en-US": "Three prerequisites on the QQ side"
+        },
+        "body": {
+          "zh-CN": "① 机器人已经在目标群里；② 群主在该群打开了「主动推送消息」；③ 到 QQ 开放平台管理端申请群事件订阅权限。第 ③ 条没批下来时自动识别拿不到群 ID，只能手动填；第 ①② 条缺任何一条，发送会返回权限类错误，翻译后的人话会写进「推送状态」。",
+          "en-US": "1) The bot is already in the target group; 2) the group owner has enabled proactive messages for that group; 3) group event subscription has been granted in the QQ Open Platform console. Without 3 the automatic discovery cannot see group IDs, so fill them in by hand; missing 1 or 2 makes sends fail with a permission error, and the plain-language reason shows up in Delivery status."
+        },
+        "group": "connection"
+      },
+      {
+        "id": "daily-cap-and-truncation",
+        "tone": "info",
+        "title": {
+          "zh-CN": "群消息有硬额度",
+          "en-US": "Group messages have a hard quota"
+        },
+        "body": {
+          "zh-CN": "一个群每天最多 1000 条主动消息，本插件默认 800 条封顶，超出后 QQ 侧会直接拒绝，记录里标注为触达日配额。单条消息太长会被截断并加省略号，所以不要把整篇正文塞进模板。",
+          "en-US": "A group accepts at most 1000 proactive messages per day; this plugin caps at 800 and marks anything beyond as quota reached, which QQ would reject anyway. Long messages are truncated with an ellipsis, so do not paste the whole post into the template."
+        },
+        "group": "limits"
+      },
+      {
+        "id": "probe-buttons-are-read-only",
+        "tone": "info",
+        "title": {
+          "zh-CN": "三个按钮都不会改配置",
+          "en-US": "None of the three buttons changes your settings"
+        },
+        "body": {
+          "zh-CN": "「预览（不发送）」只用页面上的草稿值渲染一条样例，不发送、不保存；「发一条测试消息」用同一份草稿值发一条样例，也不会保存设置或写进投递记录；「推送状态」只读地回报配置与最近投递。三者都不改配置。",
+          "en-US": "\"Preview (no send)\" only renders a sample from the draft values on this page; \"Send a test message\" sends a sample built from the same draft values without saving settings or writing a delivery record; \"Delivery status\" only reads configuration and recent deliveries. None of the three changes your settings."
+        },
+        "group": "probe"
+      }
+    ]
+  },
+  "fields": [
+    {
+      "key": "app_id",
+      "label": { "zh-CN": "AppID", "en-US": "AppID" },
+      "description": {
+        "zh-CN": "QQ 开放平台里机器人应用的 AppID。它不是密钥，可以照抄；留空时插件不会推送任何消息。",
+        "en-US": "The AppID of the bot application in the QQ Open Platform. It is not a secret, so it is safe to copy; leave it empty and nothing is pushed."
+      },
+      "type": "text",
+      "default": "",
+      "placeholder": { "zh-CN": "例如 102123456", "en-US": "e.g. 102123456" },
+      "groupId": "connection"
+    },
+    {
+      "key": "app_secret",
+      "label": { "zh-CN": "AppSecret", "en-US": "AppSecret" },
+      "description": {
+        "zh-CN": "机器人应用的 AppSecret，用来换取发送消息的凭据。留空表示保留已保存的值，只有更换时才需要重新填写；它不会回显，也不会写进日志、投递记录或错误提示。",
+        "en-US": "The AppSecret used to obtain the token that sends messages. Leave it blank to keep the stored value and fill it in only when rotating; it is never echoed back and never written to logs, delivery records, or error text."
+      },
+      "type": "secret",
+      "default": "",
+      "groupId": "connection"
+    },
+    {
+      "key": "group_ids",
+      "label": { "zh-CN": "群 ID 列表", "en-US": "Group IDs" },
+      "description": {
+        "zh-CN": "要推送到哪些群，每行一个群 ID；以 # 开头的行是注释，空行忽略。注意这是 group_openid，不是群号，拿法见上方提示。留空表示不向任何群推送。",
+        "en-US": "Which groups receive pushes, one group ID per line; lines starting with # are comments and blank lines are ignored. These are group_openid values, not group numbers — see the note above for how to obtain them. Empty means no group receives anything."
+      },
+      "type": "textarea",
+      "width": "full",
+      "default": "",
+      "placeholder": {
+        "zh-CN": "ABCDEF0123456789ABCDEF0123456789\n# 注释行会被忽略",
+        "en-US": "ABCDEF0123456789ABCDEF0123456789\n# comment lines are ignored"
+      },
+      "groupId": "targets"
+    },
+    {
+      "key": "category_filter",
+      "label": { "zh-CN": "只推送这些分类", "en-US": "Only these categories" },
+      "description": {
+        "zh-CN": "填分类 slug，每行一个；以 # 开头的行是注释。留空表示全部分类都推。想只推公告类，就填公告分类的 slug。",
+        "en-US": "Category slugs, one per line; lines starting with # are comments. Leave it empty to push every category, or list the announcement slug to push announcements only."
+      },
+      "type": "textarea",
+      "width": "full",
+      "default": "",
+      "placeholder": { "zh-CN": "announcements\n# releases", "en-US": "announcements\n# releases" },
+      "groupId": "targets"
+    },
+    {
+      "key": "paused",
+      "label": { "zh-CN": "暂停推送", "en-US": "Pause pushing" },
+      "description": {
+        "zh-CN": "应急刹车：打开后新帖不再推送到任何群，插件仍然接收事件、记录结果，便于事后核对。排查完记得关掉。",
+        "en-US": "Emergency brake: when on, new topics are not pushed anywhere, though events are still received and recorded so you can reconcile later. Turn it off when you are done."
+      },
+      "type": "boolean",
+      "default": "false",
+      "groupId": "targets"
+    },
+    {
+      "key": "enable_group_id_claim",
+      "label": { "zh-CN": "启用群 ID 自动识别", "en-US": "Discover group IDs automatically" },
+      "description": {
+        "zh-CN": "打开后插件会连上 QQ 的事件通道，把机器人被拉进群、或在群里被 @ 时看到的群 ID 记下来，供「推送状态」里复制。关闭后只能手动填群 ID。",
+        "en-US": "When on, the plugin listens on the QQ event channel and records the group ID it sees when the bot is added to a group or mentioned in one, so you can copy it from Delivery status. When off, group IDs must be entered by hand."
+      },
+      "type": "boolean",
+      "default": "true",
+      "groupId": "targets"
+    },
+    {
+      "key": "message_format",
+      "label": { "zh-CN": "消息形态", "en-US": "Message format" },
+      "description": {
+        "zh-CN": "纯文本最稳；Markdown 能发粗体、链接、换行等基础语法，群聊 Markdown 对所有机器人可用，不需要向平台申请模板。",
+        "en-US": "Plain text is the safest choice; markdown adds bold, links, and line breaks. Group markdown works for every bot and needs no template approval from the platform."
+      },
+      "type": "select",
+      "default": "text",
+      "options": [
+        {
+          "value": "text",
+          "label": { "zh-CN": "纯文本", "en-US": "Plain text" },
+          "description": {
+            "zh-CN": "原样发送，不做任何转义，适合大多数群。",
+            "en-US": "Sent verbatim with no escaping; fine for most groups."
+          }
+        },
+        {
+          "value": "markdown",
+          "label": { "zh-CN": "群聊 Markdown", "en-US": "Group markdown" },
+          "description": {
+            "zh-CN": "支持基础 Markdown 语法；变量值里的特殊字符会被转义，不会破坏格式。",
+            "en-US": "Supports basic markdown; special characters inside variable values are escaped so they cannot break the format."
+          }
+        }
+      ],
+      "groupId": "template"
+    },
+    {
+      "key": "message_template",
+      "label": { "zh-CN": "消息模板", "en-US": "Message template" },
+      "description": {
+        "zh-CN": "可用变量：{{title}} {{author}} {{category}} {{tags}} {{excerpt}} {{url}} {{topicId}} {{date}} {{signature}}；也支持中文名：{{标题}} {{作者}} {{分类}} {{标签}} {{摘要}} {{链接}} {{主题ID}} {{日期}} {{签名}}。不认识的变量会原样保留，方便你对照检查。",
+        "en-US": "Available variables: {{title}} {{author}} {{category}} {{tags}} {{excerpt}} {{url}} {{topicId}} {{date}} {{signature}}; Chinese aliases work too: {{标题}} {{作者}} {{分类}} {{标签}} {{摘要}} {{链接}} {{主题ID}} {{日期}} {{签名}}. Unknown variables are left untouched so you can spot typos."
+      },
+      "type": "textarea",
+      "width": "full",
+      "default": "【新帖】{{title}}\n作者：{{author}}｜分类：{{category}}\n{{excerpt}}\n{{url}}\n{{signature}}",
+      "groupId": "template"
+    },
+    {
+      "key": "excerpt_limit",
+      "label": { "zh-CN": "摘要长度上限", "en-US": "Excerpt length" },
+      "description": {
+        "zh-CN": "摘要最多显示多少个字，超出会被截断并加省略号。填 0 表示不显示摘要（模板里的 {{excerpt}} 变成空）。",
+        "en-US": "How many characters of the post excerpt to show; longer text is cut and an ellipsis is appended. 0 hides the excerpt, so {{excerpt}} renders empty."
+      },
+      "type": "number",
+      "default": "120",
+      "groupId": "template"
+    },
+    {
+      "key": "max_message_chars",
+      "label": { "zh-CN": "单条消息字数上限", "en-US": "Max message characters" },
+      "description": {
+        "zh-CN": "整条消息（含模板与签名）的字数上限，超出会被截断并加省略号。QQ 侧遇到超长消息会直接报错，这里提前兜住。",
+        "en-US": "Upper bound for the whole rendered message including template text and signature; longer output is truncated with an ellipsis. QQ rejects over-long messages outright, so this catches it first."
+      },
+      "type": "number",
+      "default": "1000",
+      "groupId": "limits"
+    },
+    {
+      "key": "signature",
+      "label": { "zh-CN": "消息签名", "en-US": "Signature" },
+      "description": {
+        "zh-CN": "追加在消息尾部的一行落款，模板里用 {{signature}} 引用。可以留空，留空时该变量渲染为空串。",
+        "en-US": "One line appended at the end of the message and referenced as {{signature}} in the template. It may be empty, in which case the variable renders as an empty string."
+      },
+      "type": "text",
+      "default": "来自 SForum 论坛",
+      "groupId": "template"
+    },
+    {
+      "key": "daily_push_cap_per_group",
+      "label": { "zh-CN": "每群每日上限", "en-US": "Daily cap per group" },
+      "description": {
+        "zh-CN": "每个群每天最多推多少条。平台侧是每群每天 1000 条主动消息，这里默认留 200 条余量；触达上限后当天不再发送，并在记录里标注。",
+        "en-US": "How many pushes one group may receive per day. The platform allows 1000 proactive messages per group per day, so the default leaves a 200-message margin; once reached, that group gets nothing more that day and the record says so."
+      },
+      "type": "number",
+      "default": "800",
+      "groupId": "limits"
+    },
+    {
+      "key": "max_pushes_per_minute",
+      "label": { "zh-CN": "每分钟推送上限", "en-US": "Pushes per minute" },
+      "description": {
+        "zh-CN": "全局每分钟最多发多少条，用来避开平台的频控。超出的消息排队等待，不会被丢弃。",
+        "en-US": "Global cap on messages sent per minute, which keeps the plugin under platform rate limits. Excess messages wait in the queue instead of being dropped."
+      },
+      "type": "number",
+      "default": "20",
+      "groupId": "limits"
+    },
+    {
+      "key": "max_retries",
+      "label": { "zh-CN": "失败重试次数", "en-US": "Retry attempts" },
+      "description": {
+        "zh-CN": "网络抖动或平台临时故障时的重试次数，退避间隔逐步拉长。凭据错误、没有权限、消息过长这类业务错误不会重试，重试也没用。",
+        "en-US": "Retries for network blips and transient platform failures, with growing backoff. Business errors such as bad credentials, missing permission, or an over-long message are not retried because retrying cannot help."
+      },
+      "type": "number",
+      "default": "2",
+      "groupId": "limits"
+    },
+    {
+      "key": "send_timeout_seconds",
+      "label": { "zh-CN": "单次发送超时（秒）", "en-US": "Send timeout (seconds)" },
+      "description": {
+        "zh-CN": "一次发送请求（含换取凭据）最多等多久，超过就按超时失败处理并进入重试。网络慢时适当调大，但别超过平台的响应窗口。",
+        "en-US": "How long one send attempt may take, including token acquisition; beyond it the attempt fails as a timeout and enters retry. Raise it on slow networks, but stay inside the platform response window."
+      },
+      "type": "number",
+      "default": "10",
+      "groupId": "limits"
+    },
+    {
+      "key": "log_verbose",
+      "label": { "zh-CN": "详细日志", "en-US": "Verbose logging" },
+      "description": {
+        "zh-CN": "打开后输出更详细的排错日志（过滤原因、重试过程、错误码）。日志里不会出现 AppSecret 或完整凭据；排查完建议关掉。",
+        "en-US": "Turns on detailed troubleshooting logs: filter reasons, retries, and error codes. The AppSecret and full credentials never appear; turn it back off once the issue is gone."
+      },
+      "type": "boolean",
+      "default": "false",
+      "groupId": "probe"
+    }
+  ],
+  "actions": [
+    {
+      "id": "preview",
+      "kind": "ai_tool_probe",
+      "label": { "zh-CN": "预览（不发送）", "en-US": "Preview (no send)" },
+      "description": {
+        "zh-CN": "用上面的草稿值渲染一条样例消息，只回报渲染结果、是否被截断与未识别的变量名；不发送、不保存。",
+        "en-US": "Render a sample message with the draft values above and report the rendered text, whether it was truncated, and any unknown variable names; nothing is sent or saved."
+      },
+      "placement": "footer",
+      "useDraftValues": true,
+      "fields": ["message_template", "message_format", "signature", "excerpt_limit", "max_message_chars"],
+      "tool": "sforum.qq-bot.tool.preview"
+    },
+    {
+      "id": "test_push",
+      "kind": "ai_tool_probe",
+      "label": { "zh-CN": "发一条测试消息", "en-US": "Send a test message" },
+      "description": {
+        "zh-CN": "用上面的草稿值渲染一条样例消息，发到群 ID 列表里的第一个群，回报渲染结果与发送结果。它不会保存设置，也不会写进投递记录。",
+        "en-US": "Render a sample message with the draft values above, send it to the first group ID, and report both the rendered text and the send result. It saves nothing and writes no delivery record."
+      },
+      "placement": "footer",
+      "useDraftValues": true,
+      "fields": [
+        "app_id",
+        "app_secret",
+        "group_ids",
+        "message_format",
+        "message_template",
+        "excerpt_limit",
+        "max_message_chars",
+        "signature",
+        "send_timeout_seconds"
+      ],
+      "tool": "sforum.qq-bot.tool.test_push"
+    },
+    {
+      "id": "status",
+      "kind": "ai_tool_probe",
+      "label": { "zh-CN": "推送状态", "en-US": "Delivery status" },
+      "description": {
+        "zh-CN": "只读地回报：凭据与群 ID 是否齐备、是否暂停、群 ID 自动识别状态，以及最近的投递结果与识别到的群 ID（可直接复制）。",
+        "en-US": "Read-only report: whether credentials and group IDs are present, whether pushing is paused, the group-ID discovery state, recent deliveries, and the discovered group IDs ready to copy."
+      },
+      "placement": "footer",
+      "useDraftValues": true,
+      "fields": ["app_id", "app_secret", "group_ids", "paused", "enable_group_id_claim", "message_format"],
+      "tool": "sforum.qq-bot.tool.status"
+    }
+  ]
+}

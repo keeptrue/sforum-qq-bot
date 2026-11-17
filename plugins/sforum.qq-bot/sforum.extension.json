@@ -1,0 +1,416 @@
+{
+  "admin": {
+    "entry": "/settings",
+    "pages": [
+      {
+        "description": "新帖推送到 QQ 群、消息模板、群 ID 识别与推送状态。",
+        "group": "integration",
+        "icon": "i-tabler-brand-qq",
+        "label": "QQ 机器人",
+        "menu": true,
+        "order": 56,
+        "path": "/settings",
+        "view": "settings"
+      }
+    ]
+  },
+  "aiTools": [
+    {
+      "contractVersion": "sforum.qq-bot.tool.preview@1",
+      "description": "仅供管理员在插件设置页点「预览（不发送）」按钮使用，模型不应调用。它用设置页当前草稿值渲染一条样例消息，回报渲染结果、是否被截断以及未识别的变量名，不发送任何消息。",
+      "handler": "sforum.qq-bot.tool.preview",
+      "id": "sforum.qq-bot.tool.preview",
+      "name": "qq-bot-preview",
+      "parameters": {
+        "properties": {
+          "excerpt_limit": {
+            "description": "设置页草稿中的摘要长度上限，0 表示不显示摘要。",
+            "type": "string"
+          },
+          "max_message_chars": {
+            "description": "设置页草稿中的消息字数上限。",
+            "type": "string"
+          },
+          "message_format": {
+            "description": "设置页草稿中的消息形态：text 或 markdown。",
+            "type": "string"
+          },
+          "message_template": {
+            "description": "设置页草稿中的消息模板。",
+            "type": "string"
+          },
+          "signature": {
+            "description": "设置页草稿中的消息签名。",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "timeoutMs": 10000
+    },
+    {
+      "contractVersion": "sforum.qq-bot.tool.test_push@1",
+      "description": "仅供管理员在插件设置页点「发一条测试消息」按钮使用，模型不应调用。它用设置页当前草稿值渲染一条样例消息，发到白名单里的第一个群，并回报渲染结果与发送结果。",
+      "handler": "sforum.qq-bot.tool.test_push",
+      "id": "sforum.qq-bot.tool.test_push",
+      "name": "qq-bot-test-push",
+      "parameters": {
+        "properties": {
+          "app_id": {
+            "description": "设置页草稿中的 AppID。",
+            "type": "string"
+          },
+          "app_secret": {
+            "description": "设置页草稿中的 AppSecret；留空表示沿用已保存值。",
+            "type": "string"
+          },
+          "excerpt_limit": {
+            "description": "设置页草稿中的摘要长度上限，0 表示不显示摘要。",
+            "type": "string"
+          },
+          "group_ids": {
+            "description": "设置页草稿中的群 ID 列表，每行一个。",
+            "type": "string"
+          },
+          "max_message_chars": {
+            "description": "设置页草稿中的消息字数上限。",
+            "type": "string"
+          },
+          "message_format": {
+            "description": "设置页草稿中的消息形态：text 或 markdown。",
+            "type": "string"
+          },
+          "message_template": {
+            "description": "设置页草稿中的消息模板。",
+            "type": "string"
+          },
+          "send_timeout_seconds": {
+            "description": "设置页草稿中的单次发送超时（秒）。",
+            "type": "string"
+          },
+          "signature": {
+            "description": "设置页草稿中的消息签名。",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "timeoutMs": 10000
+    },
+    {
+      "contractVersion": "sforum.qq-bot.tool.status@1",
+      "description": "仅供管理员在插件设置页点「推送状态」按钮使用，模型不应调用。它回报凭据与白名单是否齐备、是否暂停推送、群 ID 自动识别状态，以及最近的投递结果和识别到的群 ID。",
+      "handler": "sforum.qq-bot.tool.status",
+      "id": "sforum.qq-bot.tool.status",
+      "name": "qq-bot-status",
+      "parameters": {
+        "properties": {
+          "app_id": {
+            "description": "设置页草稿中的 AppID。",
+            "type": "string"
+          },
+          "app_secret": {
+            "description": "设置页草稿中的 AppSecret；留空表示沿用已保存值。",
+            "type": "string"
+          },
+          "enable_group_id_claim": {
+            "description": "设置页草稿中的群 ID 自动识别开关。",
+            "type": "string"
+          },
+          "group_ids": {
+            "description": "设置页草稿中的群 ID 列表，每行一个。",
+            "type": "string"
+          },
+          "message_format": {
+            "description": "设置页草稿中的消息形态：text 或 markdown。",
+            "type": "string"
+          },
+          "paused": {
+            "description": "设置页草稿中的暂停开关。",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "timeoutMs": 10000
+    }
+  ],
+  "author": {
+    "name": "SForum"
+  },
+  "backend": {
+    "digest": "f2b92b31218cf34f95fd68e838d3cdc717b18eb63cc406158892561a9b94be49",
+    "entry": "backend/plugin",
+    "hostApiVersion": "sforum.host@2",
+    "protocolVersion": 2,
+    "rpc": "hashicorp-go-plugin"
+  },
+  "capabilities": [
+    "host.api",
+    "net.outbound"
+  ],
+  "database": {
+    "backup": {
+      "required": false,
+      "strategy": "pg_dump"
+    },
+    "contractVersion": "sforum.qq-bot.database@1",
+    "grants": [
+      "core_views"
+    ],
+    "retention": {
+      "days": 30,
+      "onDisable": "retain",
+      "onUninstall": "export"
+    }
+  },
+  "description": "Push new forum topics to QQ groups with an operator-authored template, discover group_openid values from QQ group events, and probe delivery from the plugin settings page.",
+  "events": [
+    {
+      "contractVersion": "sforum.qq-bot.event.topic-created@1",
+      "handler": "sforum.qq-bot.observe.topic-created",
+      "id": "sforum.qq-bot.event.topic-created",
+      "inputSchema": "sforum.qq-bot.topic-created.input@1",
+      "kind": "observe",
+      "name": "topic.created",
+      "resultSchema": "sforum.qq-bot.topic-created.result@1"
+    }
+  ],
+  "id": "sforum.qq-bot",
+  "includes": {
+    "langs": "manifest/langs",
+    "settings": "manifest/settings.json"
+  },
+  "manifestVersion": 3,
+  "name": "SForum QQ Bot",
+  "openapi": [
+    {
+      "contractVersion": "sforum.qq-bot.openapi.routes@1",
+      "digest": "47b313b63f52ac9487ea702ccdbaa84cf1bd8999f36f68346c6324d91539dbbe",
+      "id": "sforum.qq-bot.openapi.routes",
+      "namespace": "sforum.qq-bot",
+      "path": "openapi/routes.yaml"
+    }
+  ],
+  "packageFiles": [
+    {
+      "digest": "f2b92b31218cf34f95fd68e838d3cdc717b18eb63cc406158892561a9b94be49",
+      "id": "sforum.qq-bot.file.backend",
+      "kind": "executable",
+      "path": "backend/plugin"
+    },
+    {
+      "digest": "74222c9173649b24a6656f7fcd8172b4348b576189de8cb7c16b58e294727c89",
+      "id": "sforum.qq-bot.topic-created.input",
+      "kind": "schema",
+      "path": "schemas/topic-created-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "4e28ec76fc0610d2c922037851eaf8946953b02569e04f49e396588c64de338b",
+      "id": "sforum.qq-bot.topic-created.result",
+      "kind": "schema",
+      "path": "schemas/topic-created-result.json",
+      "version": "1"
+    },
+    {
+      "digest": "7e467c944078050998549315a397e77da56e95b5215a8dbfbc84654c7b613d14",
+      "id": "sforum.qq-bot.bind.start.input",
+      "kind": "schema",
+      "path": "schemas/bind-start-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "d202e76b8d90e005ade707c5d92df1e835569cb4ed61dc73906c11c9d7dace28",
+      "id": "sforum.qq-bot.bind.start.output",
+      "kind": "schema",
+      "path": "schemas/bind-start-output.json",
+      "version": "1"
+    },
+    {
+      "digest": "cb84a4210664ff0a909d04c30f81319b3f0018249ed2d09e08980c4dc53d3640",
+      "id": "sforum.qq-bot.bind.poll.input",
+      "kind": "schema",
+      "path": "schemas/bind-poll-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "f27118266ef381388125913682158a4a49d9179e872218bb7d5d7d5c558db37d",
+      "id": "sforum.qq-bot.bind.poll.output",
+      "kind": "schema",
+      "path": "schemas/bind-poll-output.json",
+      "version": "1"
+    },
+    {
+      "digest": "8988d25b15d0a31e7ea5e3e6a3d7c10b303750bcb920ba5703954933e4473b9f",
+      "id": "sforum.qq-bot.preview.input",
+      "kind": "schema",
+      "path": "schemas/preview-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "7a4e7fe5ff370b3362e756080d8f5e51fc40fdde938a9e049a3f67c17317109c",
+      "id": "sforum.qq-bot.preview.output",
+      "kind": "schema",
+      "path": "schemas/preview-output.json",
+      "version": "1"
+    },
+    {
+      "digest": "62baa606ea90fdbf8f01216460617d22fecac1410bf82f7ab7b0aa906fcf4aeb",
+      "id": "sforum.qq-bot.test_push.input",
+      "kind": "schema",
+      "path": "schemas/test-push-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "e113b38ed888df4457dde022bc3d0e7dfada0986665fdfde064af8694434d8ab",
+      "id": "sforum.qq-bot.test_push.output",
+      "kind": "schema",
+      "path": "schemas/test-push-output.json",
+      "version": "1"
+    },
+    {
+      "digest": "09cbef99aa393beffcf95ea3663760ba802487306f24446c4f4cf44edaee83c6",
+      "id": "sforum.qq-bot.status.input",
+      "kind": "schema",
+      "path": "schemas/status-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "fc2136c5791ab4a9e6999cc4266c818003323669d77524c74fd548c93cd1f79d",
+      "id": "sforum.qq-bot.status.output",
+      "kind": "schema",
+      "path": "schemas/status-output.json",
+      "version": "1"
+    },
+    {
+      "digest": "47b313b63f52ac9487ea702ccdbaa84cf1bd8999f36f68346c6324d91539dbbe",
+      "id": "sforum.qq-bot.file.openapi",
+      "kind": "openapi",
+      "path": "openapi/routes.yaml"
+    },
+    {
+      "digest": "b429a28a9f6cf4a6abbfc43f4ec85c4290fc9bfa817ba9d8cb386ca1dbcb3fcd",
+      "id": "sforum.qq-bot.file.settings_entry",
+      "kind": "frontend",
+      "path": "frontend/admin/dist/settings.mjs"
+    },
+    {
+      "digest": "e2bbbbc8d8d2ee67a9e3afb30b72ebe8c61c2ce577701aa490590ccd2ef8b3fd",
+      "id": "sforum.qq-bot.file.settings_style",
+      "kind": "asset",
+      "path": "frontend/admin/dist/settings.css"
+    }
+  ],
+  "permissionDefinitions": [
+    {
+      "assignmentPolicy": "host",
+      "contractVersion": "sforum.qq-bot.permission.manage@1",
+      "description": {
+        "en-US": "Allows QR-code binding from mobile QQ, message template preview, test pushes, and delivery status in the admin panel.",
+        "zh-CN": "允许在后台完成手机 QQ 扫码绑定、预览消息模板、发送测试消息与查看推送状态。"
+      },
+      "key": "sforum.qq-bot.manage",
+      "label": {
+        "en-US": "Manage QQ bot binding and delivery",
+        "zh-CN": "管理 QQ 机器人绑定与推送"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "access": "permission",
+      "action": "add",
+      "contractVersion": "sforum.qq-bot.route.bind_start@1",
+      "fallback": "closed",
+      "guard": "core.guard.permission",
+      "handler": "sforum.qq-bot.route.bind_start",
+      "id": "sforum.qq-bot.route.bind_start",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/bind/start",
+      "permission": "sforum.qq-bot.manage",
+      "requestSchema": "sforum.qq-bot.bind.start.input@1",
+      "responseSchema": "sforum.qq-bot.bind.start.output@1",
+      "timeoutMs": 15000
+    },
+    {
+      "access": "permission",
+      "action": "add",
+      "contractVersion": "sforum.qq-bot.route.bind_poll@1",
+      "fallback": "closed",
+      "guard": "core.guard.permission",
+      "handler": "sforum.qq-bot.route.bind_poll",
+      "id": "sforum.qq-bot.route.bind_poll",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/bind/poll",
+      "permission": "sforum.qq-bot.manage",
+      "requestSchema": "sforum.qq-bot.bind.poll.input@1",
+      "responseSchema": "sforum.qq-bot.bind.poll.output@1",
+      "timeoutMs": 15000
+    },
+    {
+      "access": "permission",
+      "action": "add",
+      "contractVersion": "sforum.qq-bot.route.preview@1",
+      "fallback": "closed",
+      "guard": "core.guard.permission",
+      "handler": "sforum.qq-bot.route.preview",
+      "id": "sforum.qq-bot.route.preview",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/preview",
+      "permission": "sforum.qq-bot.manage",
+      "requestSchema": "sforum.qq-bot.preview.input@1",
+      "responseSchema": "sforum.qq-bot.preview.output@1",
+      "timeoutMs": 15000
+    },
+    {
+      "access": "permission",
+      "action": "add",
+      "contractVersion": "sforum.qq-bot.route.test_push@1",
+      "fallback": "closed",
+      "guard": "core.guard.permission",
+      "handler": "sforum.qq-bot.route.test_push",
+      "id": "sforum.qq-bot.route.test_push",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/test-push",
+      "permission": "sforum.qq-bot.manage",
+      "requestSchema": "sforum.qq-bot.test_push.input@1",
+      "responseSchema": "sforum.qq-bot.test_push.output@1",
+      "timeoutMs": 15000
+    },
+    {
+      "access": "permission",
+      "action": "add",
+      "contractVersion": "sforum.qq-bot.route.status@1",
+      "fallback": "closed",
+      "guard": "core.guard.permission",
+      "handler": "sforum.qq-bot.route.status",
+      "id": "sforum.qq-bot.route.status",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/status",
+      "permission": "sforum.qq-bot.manage",
+      "requestSchema": "sforum.qq-bot.status.input@1",
+      "responseSchema": "sforum.qq-bot.status.output@1",
+      "timeoutMs": 15000
+    }
+  ],
+  "sforumVersion": "\u003e=0.1.0",
+  "type": "plugin",
+  "url": "https://github.com/keeptrue/sforum-qq-bot",
+  "version": "0.2.0"
+}

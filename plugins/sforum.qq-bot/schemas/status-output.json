@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.status.output@1",
+  "title": "qq bot status response: one read-only plain-text report",
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Read-only report covering credentials, group IDs, pause state, discovery state and recent deliveries; never contains the AppSecret."
+    }
+  },
+  "additionalProperties": false
+}

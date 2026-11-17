@@ -1,0 +1,142 @@
+openapi: 3.1.0
+info:
+  title: SForum QQ Bot admin routes
+  version: 0.2.0
+paths:
+  /bind/start:
+    post:
+      operationId: sforum.qq-bot.bind.start
+      x-sforum-route-id: sforum.qq-bot.route.bind_start
+      x-sforum-contract-version: sforum.qq-bot.route.bind_start@1
+      x-sforum-guard: core.guard.permission
+      x-sforum-permission: sforum.qq-bot.manage
+      x-sforum-request-schema: sforum.qq-bot.bind.start.input@1
+      x-sforum-response-schema: sforum.qq-bot.bind.start.output@1
+      summary: Mint a QQ scan-binding task and return the URL to encode as a QR code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/sforum.qq-bot.bind.start.input@1"
+      responses:
+        "200":
+          description: Binding task created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/sforum.qq-bot.bind.start.output@1"
+  /bind/poll:
+    post:
+      operationId: sforum.qq-bot.bind.poll
+      x-sforum-route-id: sforum.qq-bot.route.bind_poll
+      x-sforum-contract-version: sforum.qq-bot.route.bind_poll@1
+      x-sforum-guard: core.guard.permission
+      x-sforum-permission: sforum.qq-bot.manage
+      x-sforum-request-schema: sforum.qq-bot.bind.poll.input@1
+      x-sforum-response-schema: sforum.qq-bot.bind.poll.output@1
+      summary: Poll one scan-binding task; scanned means the binding completed and carries the credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/sforum.qq-bot.bind.poll.input@1"
+      responses:
+        "200":
+          description: pending has no result yet, scanned completed the binding and includes appId and appSecret, expired means the task can no longer complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/sforum.qq-bot.bind.poll.output@1"
+  /preview:
+    post:
+      operationId: sforum.qq-bot.preview
+      x-sforum-route-id: sforum.qq-bot.route.preview
+      x-sforum-contract-version: sforum.qq-bot.route.preview@1
+      x-sforum-guard: core.guard.permission
+      x-sforum-permission: sforum.qq-bot.manage
+      x-sforum-request-schema: sforum.qq-bot.preview.input@1
+      x-sforum-response-schema: sforum.qq-bot.preview.output@1
+      summary: Render one sample message from draft values without sending it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/sforum.qq-bot.preview.input@1"
+      responses:
+        "200":
+          description: Rendered sample
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/sforum.qq-bot.preview.output@1"
+  /test-push:
+    post:
+      operationId: sforum.qq-bot.test.push
+      x-sforum-route-id: sforum.qq-bot.route.test_push
+      x-sforum-contract-version: sforum.qq-bot.route.test_push@1
+      x-sforum-guard: core.guard.permission
+      x-sforum-permission: sforum.qq-bot.manage
+      x-sforum-request-schema: sforum.qq-bot.test_push.input@1
+      x-sforum-response-schema: sforum.qq-bot.test_push.output@1
+      summary: Send one sample message with the stored settings and report the outcome
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/sforum.qq-bot.test_push.input@1"
+      responses:
+        "200":
+          description: Delivery outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/sforum.qq-bot.test_push.output@1"
+  /status:
+    post:
+      operationId: sforum.qq-bot.status
+      x-sforum-route-id: sforum.qq-bot.route.status
+      x-sforum-contract-version: sforum.qq-bot.route.status@1
+      x-sforum-guard: core.guard.permission
+      x-sforum-permission: sforum.qq-bot.manage
+      x-sforum-request-schema: sforum.qq-bot.status.input@1
+      x-sforum-response-schema: sforum.qq-bot.status.output@1
+      summary: Report configuration completeness, discovery state and recent deliveries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/sforum.qq-bot.status.input@1"
+      responses:
+        "200":
+          description: Plain-text status report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/sforum.qq-bot.status.output@1"
+components:
+  schemas:
+    "sforum.qq-bot.bind.start.input@1":
+      $ref: "../schemas/bind-start-input.json"
+    "sforum.qq-bot.bind.start.output@1":
+      $ref: "../schemas/bind-start-output.json"
+    "sforum.qq-bot.bind.poll.input@1":
+      $ref: "../schemas/bind-poll-input.json"
+    "sforum.qq-bot.bind.poll.output@1":
+      $ref: "../schemas/bind-poll-output.json"
+    "sforum.qq-bot.preview.input@1":
+      $ref: "../schemas/preview-input.json"
+    "sforum.qq-bot.preview.output@1":
+      $ref: "../schemas/preview-output.json"
+    "sforum.qq-bot.test_push.input@1":
+      $ref: "../schemas/test-push-input.json"
+    "sforum.qq-bot.test_push.output@1":
+      $ref: "../schemas/test-push-output.json"
+    "sforum.qq-bot.status.input@1":
+      $ref: "../schemas/status-input.json"
+    "sforum.qq-bot.status.output@1":
+      $ref: "../schemas/status-output.json"

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.topic-created.result@1",
+  "title": "qq bot delivery receipt projected by the SForum QQ Bot plugin",
+  "type": "object",
+  "required": ["accepted", "queuedGroups"],
+  "properties": {
+    "accepted": { "type": "boolean" },
+    "queuedGroups": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}

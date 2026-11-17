@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.topic-created.input@1",
+  "title": "topic.created observe payload consumed by the SForum QQ Bot plugin",
+  "type": "object",
+  "required": ["topicId", "title", "url"],
+  "properties": {
+    "topicId": { "type": ["integer", "string"] },
+    "authorUserId": { "type": ["integer", "string"] },
+    "categorySlug": { "type": "string" },
+    "tagSlugs": { "type": "array", "items": { "type": "string" } },
+    "title": { "type": "string" },
+    "path": { "type": "string" },
+    "url": { "type": "string" },
+    "topic": {
+      "type": "object",
+      "required": ["id", "title", "path", "url"],
+      "properties": {
+        "id": { "type": ["integer", "string"] },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "status": { "type": "string" },
+        "path": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "author": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": ["integer", "string"] },
+        "username": { "type": "string" },
+        "displayName": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "category": {
+      "type": "object",
+      "required": ["slug"],
+      "properties": {
+        "id": { "type": ["integer", "string", "null"] },
+        "slug": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": ["integer", "string", "null"] },
+          "slug": { "type": "string" },
+          "name": { "type": "string" },
+          "status": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

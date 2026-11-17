@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.preview.output@1",
+  "title": "qq bot template preview response: the rendered sample and what did not resolve",
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Rendered message exactly as a push would send it."
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "True when the rendered text was cut at maxMessageChars."
+    },
+    "unknownVariables": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Placeholders left untouched because the template named no known variable."
+    }
+  },
+  "additionalProperties": false
+}

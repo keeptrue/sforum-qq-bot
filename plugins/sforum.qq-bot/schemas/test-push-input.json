@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.test_push.input@1",
+  "title": "qq bot test-push request: empty, the draft values already live in the settings store",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

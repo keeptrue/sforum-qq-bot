@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.test_push.output@1",
+  "title": "qq bot test-push response: delivery outcome of the sample message",
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "True only when the sample message was accepted by the QQ platform."
+    },
+    "message": {
+      "type": "string",
+      "description": "Rendered sample plus a plain-language send result or failure reason."
+    }
+  },
+  "additionalProperties": false
+}

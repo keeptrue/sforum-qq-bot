@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.preview.input@1",
+  "title": "qq bot template preview request: draft values, nothing persisted",
+  "type": "object",
+  "properties": {
+    "template": {
+      "type": "string",
+      "description": "Message template to render; omitted means the plugin's default template."
+    },
+    "format": {
+      "type": "string",
+      "enum": ["text", "markdown"],
+      "description": "Rendering flavour; markdown escapes variable values, text does not."
+    },
+    "signature": {
+      "type": "string",
+      "description": "Line appended at the end of the message and referenced as {{signature}}."
+    },
+    "excerptLimit": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Characters of the sample excerpt to keep, 0 hides the excerpt."
+    },
+    "maxMessageChars": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Upper bound for the rendered message, 0 applies the plugin default."
+    }
+  },
+  "additionalProperties": false
+}

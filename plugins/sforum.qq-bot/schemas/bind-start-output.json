@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.bind.start.output@1",
+  "title": "qq bot bind/start response: one scan-binding task for the operator to scan",
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "Binding task id, passed back to /bind/poll until the credentials arrive."
+    },
+    "connectUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL encoded into the QR code the operator scans with mobile QQ."
+    },
+    "expiresInSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How long the QR code stays valid, in seconds."
+    }
+  },
+  "additionalProperties": false
+}
