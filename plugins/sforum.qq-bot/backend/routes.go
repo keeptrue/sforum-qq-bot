@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	pluginv2 "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2"
 	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
@@ -44,10 +45,21 @@ const (
 // 路由侧的可读拒绝文案。它们只出现在 ErrorDetail 或 {ok:false, message} 里，
 // 绝不包含任何凭据。
 const (
-	messageBindUnavailable  = "扫码绑定服务尚未就绪，请重启插件后再试，或直接手动填写凭据。"
-	messageBindRateLimited  = "扫码绑定请求过于频繁，请稍后再试。"
-	messageBindTaskMissing  = "缺少 taskId，请先调用 /bind/start 生成二维码。"
-	messageBindActorMissing = "无法确认调用者身份，请重新登录后再试。"
+	messageBindUnavailable      = "扫码绑定服务尚未就绪，请重启插件后再试，或直接手动填写凭据。"
+	messageBindRateLimited      = "扫码绑定请求过于频繁，请稍后再试。"
+	messageBindTaskMissing      = "缺少 taskId，请先调用 /bind/start 生成二维码。"
+	messageBindActorMissing     = "无法确认调用者身份，请重新登录后再试。"
+	messagePreviewSourceInvalid = "source 只接受 saved 或 draft。"
+)
+
+// 预览的两个数据源。
+//
+//	saved（默认）：用**已保存配置**渲染，和 hook.go 的推送共用 renderSaved——
+//	  这就是「真正会发出去的那段字」。
+//	draft：用请求里的草稿值渲染，供运营者编辑时实时看效果。
+const (
+	previewSourceSaved = "saved"
+	previewSourceDraft = "draft"
 )
 
 // routeContentTypeJSON 是路由响应的媒体类型。
@@ -58,8 +70,8 @@ const (
 const routeContentTypeJSON = "application/json; charset=utf-8"
 
 // InvokeRoute 覆盖嵌入的 pluginv2.Server 默认实现（默认返回 Unimplemented）。
-// 五条扩展路由都在这里分发：组件模式下宿主不渲染 actions[]，测试推送、状态与
-// 模板预览只能走插件自己的路由。
+// 六条扩展路由都在这里分发：组件模式下宿主不渲染 actions[]，测试推送、状态、
+// 模板预览与群列表只能走插件自己的路由。
 func (p *plugin) InvokeRoute(ctx context.Context, request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
 	switch request.GetRouteId() {
 	case routeBindStartID:
@@ -164,22 +176,68 @@ func (p *plugin) routeBindPoll(ctx context.Context, request *pluginwire.RouteReq
 
 // routePreview 只渲染，不发送、不查 HostQuery：预览 runtime 拿不到 host token，
 // 也不该为了一次预览去读论坛正文。
+//
+// source=saved（默认）忽略请求里的全部草稿字段：运营者要的是「保存之后真正会发
+// 出去的那段字」，草稿预览会让他以为没保存也生效。source=draft 保留编辑期预览。
 func (p *plugin) routePreview(request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
-	rendered := p.renderPreview(resolvePreviewDraft(p.cfg, routeBody(request)))
+	values := routeBody(request)
+	source := routeStringValue(values, "source")
+	if source == "" {
+		source = previewSourceSaved
+	}
+	if source != previewSourceSaved && source != previewSourceDraft {
+		return routeFailure(request, http.StatusBadRequest,
+			protocolwire.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "qq_bot.preview_source_invalid",
+			messagePreviewSourceInvalid), nil
+	}
+
+	draft := resolvePreviewDraft(p.cfg, values)
+	if source == previewSourceSaved {
+		// 已保存模式不读任何草稿字段：模板、形态、签名、摘要上限与总长度上限
+		// 全部取配置，连「0 = 沿用默认」这条约定都不必解释。
+		draft = previewDraftFromConfig(p.cfg)
+	}
+	sample := routeSampleOverride(values)
+	data := sample.apply(sampleTemplateDataFor(draft.Signature, draft.ExcerptLimit), draft.ExcerptLimit)
+	rendered := p.renderPreviewSource(source, draft, data)
+
 	// structpb 只认 []any；空切片也要给，否则 JSON 里是 null 而不是 []。
 	unknown := make([]any, 0, len(rendered.Unknown))
 	for _, name := range rendered.Unknown {
 		unknown = append(unknown, name)
 	}
 	return p.routeDocument(request, previewOutputSchema, map[string]any{
+		"source":           source,
 		"text":             rendered.Text,
 		"truncated":        rendered.Truncated,
+		"characters":       utf8.RuneCountInString(rendered.Text),
 		"unknownVariables": unknown,
+		"sampleUsed":       sample.used(),
 	})
 }
 
-// renderPreview 是预览的唯一渲染入口：路由与设置页工具共用，保证同一份草稿在
-// 两处得到逐字相同的结果。
+// renderPreviewSource 按数据源选渲染入口：saved 与推送共用 renderSaved，draft 用
+// 请求里的草稿值。两个分支的差别只有「值从哪来」，渲染实现是同一个 Render。
+func (p *plugin) renderPreviewSource(source string, draft previewDraft, data TemplateData) Rendered {
+	if source == previewSourceSaved {
+		return p.renderSaved(data)
+	}
+	return Render(draft.Template, data, RenderOptions{
+		Format: draft.Format, MaxChars: draft.MaxMessageChars, Warnf: p.log.Warnf,
+	})
+}
+
+// renderSaved 是「真正会发出去的那段字」的唯一渲染入口：模板、消息形态、总长度
+// 上限与 Warnf 全部来自已保存配置。hook.go 的推送与 source=saved 的预览都只走
+// 这里——任何一侧偷偷换了参数，TestRoutePreviewSavedSourceMatchesPushPath 就会红。
+func (p *plugin) renderSaved(data TemplateData) Rendered {
+	return Render(p.cfg.MessageTemplate, data, RenderOptions{
+		Format: p.cfg.MessageFormat, MaxChars: p.cfg.MaxMessageChars, Warnf: p.log.Warnf,
+	})
+}
+
+// renderPreview 是草稿预览的渲染入口：路由（source=draft）与设置页工具共用，
+// 保证同一份草稿在两处得到逐字相同的结果。
 func (p *plugin) renderPreview(draft previewDraft) Rendered {
 	return Render(draft.Template, sampleTemplateDataFor(draft.Signature, draft.ExcerptLimit), RenderOptions{
 		Format: draft.Format, MaxChars: draft.MaxMessageChars, Warnf: p.log.Warnf,
@@ -295,14 +353,20 @@ type previewDraft struct {
 	MaxMessageChars int
 }
 
-func resolvePreviewDraft(config Config, values map[string]any) previewDraft {
-	draft := previewDraft{
+// previewDraftFromConfig 把已保存配置摊成草稿形态。saved 预览与推送共用同一份值：
+// 模板、形态、签名、摘要上限、总长度上限一个不落，来源只有 config。
+func previewDraftFromConfig(config Config) previewDraft {
+	return previewDraft{
 		Template:        config.MessageTemplate,
 		Format:          config.MessageFormat,
 		Signature:       config.Signature,
 		ExcerptLimit:    config.ExcerptLimit,
 		MaxMessageChars: config.MaxMessageChars,
 	}
+}
+
+func resolvePreviewDraft(config Config, values map[string]any) previewDraft {
+	draft := previewDraftFromConfig(config)
 	if template, ok := routeStringPresent(values, "template"); ok {
 		draft.Template = template
 	}
@@ -320,6 +384,68 @@ func resolvePreviewDraft(config Config, values map[string]any) previewDraft {
 		draft.MaxMessageChars = limit
 	}
 	return draft
+}
+
+// previewSample 是请求里给的样例覆盖。字段为 nil 表示没给，仍用内置样例——
+// 只有真正给过的字段才覆盖，这样「只换标题验排版」不会顺手清掉作者与摘要。
+type previewSample struct {
+	title    *string
+	author   *string
+	category *string
+	excerpt  *string
+	url      *string
+}
+
+func (s previewSample) used() bool {
+	return s.title != nil || s.author != nil || s.category != nil || s.excerpt != nil || s.url != nil
+}
+
+// apply 把覆盖叠到样例数据上。摘要仍按本次生效的 excerptLimit 截断：样例换了，
+// 「摘要长度上限」这条语义不能跟着换。
+func (s previewSample) apply(data TemplateData, excerptLimit int) TemplateData {
+	if s.title != nil {
+		data.Title = *s.title
+	}
+	if s.author != nil {
+		data.Author = *s.author
+	}
+	if s.category != nil {
+		data.Category = *s.category
+	}
+	if s.url != nil {
+		data.URL = *s.url
+	}
+	if s.excerpt != nil {
+		data.Excerpt = BuildExcerpt(*s.excerpt, excerptLimit)
+	}
+	return data
+}
+
+// routeSampleOverride 读请求里的 sample 对象。缺对象、字段不是字符串都当作没给。
+func routeSampleOverride(values map[string]any) previewSample {
+	raw, ok := values["sample"]
+	if !ok || raw == nil {
+		return previewSample{}
+	}
+	sample, ok := raw.(map[string]any)
+	if !ok {
+		return previewSample{}
+	}
+	return previewSample{
+		title:    routeSampleField(sample, "title"),
+		author:   routeSampleField(sample, "author"),
+		category: routeSampleField(sample, "category"),
+		excerpt:  routeSampleField(sample, "excerpt"),
+		url:      routeSampleField(sample, "url"),
+	}
+}
+
+func routeSampleField(sample map[string]any, key string) *string {
+	text, ok := routeStringPresent(sample, key)
+	if !ok {
+		return nil
+	}
+	return &text
 }
 
 // sampleTemplateDataFor 在样例数据上叠加草稿的摘要长度：把「摘要长度上限」调小，

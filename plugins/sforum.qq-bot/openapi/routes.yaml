@@ -58,7 +58,8 @@ paths:
       x-sforum-permission: sforum.qq-bot.manage
       x-sforum-request-schema: sforum.qq-bot.preview.input@1
       x-sforum-response-schema: sforum.qq-bot.preview.output@1
-      summary: Render one sample message from draft values without sending it
+      summary: Render the message a push would send (source=saved, default) or one sample message from draft values (source=draft), without sending anything
+      description: source=saved ignores every draft field and renders the stored settings through the same path as a real push, so the text is exactly what would be sent right now. source=draft renders the draft values in the request. The optional sample object replaces individual sample fields, for example to check the layout with a real title and excerpt.
       requestBody:
         required: true
         content:
@@ -67,7 +68,7 @@ paths:
               $ref: "#/components/schemas/sforum.qq-bot.preview.input@1"
       responses:
         "200":
-          description: Rendered sample
+          description: Rendered message plus the source that produced it, the character count and any unresolved placeholders
           content:
             application/json:
               schema:

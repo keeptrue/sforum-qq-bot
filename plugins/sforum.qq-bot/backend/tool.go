@@ -189,13 +189,7 @@ func (p *plugin) previewHandler(_ context.Context, call *pluginv2.AIToolCall) (*
 	}
 
 	config := p.cfg
-	draftConfig := previewDraft{
-		Template:        config.MessageTemplate,
-		Format:          config.MessageFormat,
-		Signature:       config.Signature,
-		ExcerptLimit:    config.ExcerptLimit,
-		MaxMessageChars: config.MaxMessageChars,
-	}
+	draftConfig := previewDraftFromConfig(config)
 	// 与 /preview 同一约定：键在就按给的值渲染（空串渲染空），缺键才回落。
 	if draft.MessageTemplate != nil {
 		draftConfig.Template = *draft.MessageTemplate

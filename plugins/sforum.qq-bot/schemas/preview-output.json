@@ -4,18 +4,32 @@
   "title": "qq bot template preview response: the rendered sample and what did not resolve",
   "type": "object",
   "properties": {
+    "source": {
+      "type": "string",
+      "enum": ["saved", "draft"],
+      "description": "Which configuration actually produced text: saved means the stored settings, so the text is exactly what a push would send right now."
+    },
     "text": {
       "type": "string",
       "description": "Rendered message exactly as a push would send it."
     },
     "truncated": {
       "type": "boolean",
-      "description": "True when the rendered text was cut at maxMessageChars."
+      "description": "True when the rendered text was cut at the effective maxMessageChars."
+    },
+    "characters": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Length of text counted in code points, the same unit as Array.from(text).length in the browser."
     },
     "unknownVariables": {
       "type": "array",
       "items": { "type": "string" },
       "description": "Placeholders left untouched because the template named no known variable."
+    },
+    "sampleUsed": {
+      "type": "boolean",
+      "description": "True when at least one field of the request's sample object replaced the built-in sample value."
     }
   },
   "additionalProperties": false

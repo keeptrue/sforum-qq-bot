@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	pluginv2 "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2"
 	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
@@ -574,6 +575,7 @@ func TestRoutePreview(t *testing.T) {
 	instance := newRouteTestPlugin(t, testConfig(), sender)
 
 	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":   previewSourceDraft,
 		"template": "[{{title}}]{{txet}}",
 		"format":   "text",
 	}))
@@ -595,6 +597,7 @@ func TestRoutePreview(t *testing.T) {
 
 	// 单独一段：把总长度压到 8 字，必须报 truncated。
 	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":          previewSourceDraft,
 		"template":        "0123456789abcdef",
 		"maxMessageChars": 8,
 	}))
@@ -637,7 +640,7 @@ func TestRoutePreviewExcerptLimit(t *testing.T) {
 	sample := sampleTemplateData("sig").Excerpt
 
 	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
-		"template": "摘要：{{excerpt}}", "excerptLimit": 4,
+		"source": previewSourceDraft, "template": "摘要：{{excerpt}}", "excerptLimit": 4,
 	}))
 	if err != nil {
 		t.Fatalf("预览失败：%v", err)
@@ -648,7 +651,7 @@ func TestRoutePreviewExcerptLimit(t *testing.T) {
 	}
 
 	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
-		"template": "摘要：{{excerpt}}", "excerptLimit": 0,
+		"source": previewSourceDraft, "template": "摘要：{{excerpt}}", "excerptLimit": 0,
 	}))
 	if err != nil {
 		t.Fatalf("预览失败：%v", err)
@@ -666,7 +669,7 @@ func TestRoutePreviewMaxCharsZeroUsesDefault(t *testing.T) {
 	instance := newRouteTestPlugin(t, config, nil)
 
 	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
-		"template": "0123456789abcdefghij", "maxMessageChars": 0,
+		"source": previewSourceDraft, "template": "0123456789abcdefghij", "maxMessageChars": 0,
 	}))
 	if err != nil {
 		t.Fatalf("预览失败：%v", err)
@@ -684,7 +687,7 @@ func TestRoutePreviewMaxCharsZeroUsesDefault(t *testing.T) {
 func TestRoutePreviewEmptyTemplateRendersEmpty(t *testing.T) {
 	instance := newRouteTestPlugin(t, testConfig(), nil)
 	response, err := instance.InvokeRoute(context.Background(),
-		newRouteRequest(t, routePreviewID, map[string]any{"template": ""}))
+		newRouteRequest(t, routePreviewID, map[string]any{"source": previewSourceDraft, "template": ""}))
 	if err != nil {
 		t.Fatalf("预览失败：%v", err)
 	}
@@ -708,7 +711,7 @@ func TestRoutePreviewEmptyTemplateKeepsMaxCharsConvention(t *testing.T) {
 	instance := newRouteTestPlugin(t, config, nil)
 
 	response, err := instance.InvokeRoute(context.Background(),
-		newRouteRequest(t, routePreviewID, map[string]any{"template": "", "maxMessageChars": 0}))
+		newRouteRequest(t, routePreviewID, map[string]any{"source": previewSourceDraft, "template": "", "maxMessageChars": 0}))
 	if err != nil {
 		t.Fatalf("预览失败：%v", err)
 	}
@@ -726,7 +729,7 @@ func TestRoutePreviewEmptySignatureRendersEmpty(t *testing.T) {
 	instance := newRouteTestPlugin(t, testConfig(), nil)
 	response, err := instance.InvokeRoute(context.Background(),
 		newRouteRequest(t, routePreviewID, map[string]any{
-			"template": "{{title}}|{{signature}}", "signature": "",
+			"source": previewSourceDraft, "template": "{{title}}|{{signature}}", "signature": "",
 		}))
 	if err != nil {
 		t.Fatalf("预览失败：%v", err)
@@ -738,6 +741,170 @@ func TestRoutePreviewEmptySignatureRendersEmpty(t *testing.T) {
 	}
 	if strings.Contains(text, defaultSignature) {
 		t.Fatalf("不该回落到已保存签名：%q", text)
+	}
+}
+
+// preview：source=saved 忽略请求里的全部草稿字段，输出就是已保存配置的渲染。
+func TestRoutePreviewSavedSourceIgnoresDraft(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	body := map[string]any{
+		"source":          previewSourceSaved,
+		"template":        "草稿模板 {{title}}",
+		"format":          "markdown",
+		"signature":       "草稿签名",
+		"excerptLimit":    3,
+		"maxMessageChars": 8,
+	}
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, body))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	want := "【新主题】" + sampleTemplateData("").Title
+	if text, _ := values["text"].(string); text != want {
+		t.Fatalf("saved 源应忽略草稿字段，得到 %q（期望 %q）", text, want)
+	}
+	if values["source"] != previewSourceSaved {
+		t.Fatalf("source 应回显 saved：%v", values["source"])
+	}
+	if values["truncated"] != false {
+		t.Fatalf("草稿里的 maxMessageChars=8 不该生效：%v", values["truncated"])
+	}
+	if characters, ok := values["characters"].(float64); !ok || int(characters) != utf8.RuneCountInString(want) {
+		t.Fatalf("characters 应为 %d，得到 %v", utf8.RuneCountInString(want), values["characters"])
+	}
+	if unknown, _ := values["unknownVariables"].([]any); len(unknown) != 0 {
+		t.Fatalf("已保存模板没有未知变量：%v", values["unknownVariables"])
+	}
+
+	// 不传 source 时默认就是 saved：同一份 body 去掉 source 必须得到同样的字。
+	delete(body, "source")
+	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, body))
+	if err != nil {
+		t.Fatalf("默认源预览失败：%v", err)
+	}
+	values = routeDocumentValues(t, response, previewOutputSchema)
+	if text, _ := values["text"].(string); text != want {
+		t.Fatalf("source 缺省应等于 saved，得到 %q", text)
+	}
+	if values["source"] != previewSourceSaved {
+		t.Fatalf("缺省时 source 应回显 saved：%v", values["source"])
+	}
+}
+
+// preview：source=draft 仍然按请求里的草稿值渲染（缺键回落、未知变量原样保留）。
+func TestRoutePreviewDraftSourceStillAppliesDraft(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":          previewSourceDraft,
+		"template":        "【{{title}}】{{signature}}{{txet}}",
+		"signature":       "草稿签名",
+		"maxMessageChars": 0,
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	want := "【" + sampleTemplateData("").Title + "】草稿签名{{txet}}"
+	if text, _ := values["text"].(string); text != want {
+		t.Fatalf("draft 源应使用草稿值，得到 %q（期望 %q）", text, want)
+	}
+	if values["source"] != previewSourceDraft {
+		t.Fatalf("source 应回显 draft：%v", values["source"])
+	}
+	unknown, _ := values["unknownVariables"].([]any)
+	if len(unknown) != 1 || unknown[0] != "txet" {
+		t.Fatalf("未知变量应原样保留并报出来：%v", values["unknownVariables"])
+	}
+	if values["truncated"] != false {
+		t.Fatalf("maxMessageChars=0 应沿用默认上限，不该截断：%v", values["truncated"])
+	}
+}
+
+// preview：sample 覆盖只替换给过的字段，摘要仍按生效的 excerptLimit 截断。
+func TestRoutePreviewSampleOverride(t *testing.T) {
+	config := testConfig()
+	config.MessageTemplate = "{{title}}|{{author}}|{{excerpt}}"
+	instance := newRouteTestPlugin(t, config, nil)
+
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source": previewSourceSaved,
+		"sample": map[string]any{"title": "真实标题", "excerpt": "真实摘要"},
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	want := "真实标题|示例作者|" + BuildExcerpt("真实摘要", config.ExcerptLimit)
+	if text, _ := values["text"].(string); text != want {
+		t.Fatalf("样例覆盖没生效，得到 %q（期望 %q）", text, want)
+	}
+	if values["sampleUsed"] != true {
+		t.Fatalf("给了 sample 时 sampleUsed 应为 true：%v", values["sampleUsed"])
+	}
+
+	// 不给 sample：仍用内置样例，sampleUsed 为 false。
+	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source": previewSourceSaved,
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values = routeDocumentValues(t, response, previewOutputSchema)
+	if values["sampleUsed"] != false {
+		t.Fatalf("没给 sample 时 sampleUsed 应为 false：%v", values["sampleUsed"])
+	}
+	if text, _ := values["text"].(string); !strings.Contains(text, sampleTemplateData("").Title) {
+		t.Fatalf("没给 sample 时应使用内置样例：%q", text)
+	}
+}
+
+// preview：saved 源与 hook.go 的推送逐字相同——这才是「真预览」的定义。
+//
+// 做法：用同一份已保存配置跑一次真推送（InvokeHook → dispatcher 队列），再调
+// /preview source=saved，比对两边的正文。样例数据的每个字段都由推送载荷提供，
+// 所以两条路径喂给 Render 的是同一份 TemplateData。
+func TestRoutePreviewSavedSourceMatchesPushPath(t *testing.T) {
+	config := testConfig()
+	config.MessageTemplate = "【{{title}}】{{author}}/{{category}}\n摘要：{{excerpt}}\n链接：{{url}}\n—— {{signature}}"
+	config.ExcerptLimit = 12
+	instance, identity := newTestHook(t, config, nil, nil)
+
+	sample := sampleTemplateData(config.Signature)
+	payload := map[string]any{
+		"topicId": sample.TopicID,
+		"topic": map[string]any{
+			"id": sample.TopicID, "title": sample.Title, "url": sample.URL, "excerpt": sample.Excerpt,
+		},
+		"author":   map[string]any{"displayName": sample.Author},
+		"category": map[string]any{"name": sample.Category},
+	}
+	if _, err := instance.InvokeHook(context.Background(),
+		newHookRequest(identity, payload, "delivery-preview-parity")); err != nil {
+		t.Fatalf("推送路径失败：%v", err)
+	}
+	var pushed DeliveryJob
+	select {
+	case pushed = <-instance.dispatcher.queue:
+	default:
+		t.Fatal("推送路径没有入队任何投递")
+	}
+	if pushed.Content == "" {
+		t.Fatal("推送路径渲染出了空正文")
+	}
+
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequest(t, routePreviewID, map[string]any{"source": previewSourceSaved}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	text, _ := values["text"].(string)
+	if text != pushed.Content {
+		t.Fatalf("saved 预览必须与推送逐字相同：\n预览 %q\n推送 %q", text, pushed.Content)
+	}
+	if characters, ok := values["characters"].(float64); !ok || int(characters) != utf8.RuneCountInString(pushed.Content) {
+		t.Fatalf("characters 与正文不一致：%v vs %q", values["characters"], pushed.Content)
 	}
 }
 
