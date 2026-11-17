@@ -40,12 +40,36 @@ const PRESETS: readonly Preset[] = [
   }
 ]
 
+// Sample overrides: the operator types what the built-in sample should say.
+// They live in this component only — never a setting, never persisted.
+const SAMPLE_FIELDS: readonly Readonly<{ token: string, label: MessageKey }>[] = [
+  { token: 'title', label: 'template.sampleTitle' },
+  { token: 'author', label: 'template.sampleAuthor' },
+  { token: 'category', label: 'template.sampleCategory' },
+  { token: 'excerpt', label: 'template.sampleExcerpt' },
+  { token: 'url', label: 'template.sampleUrl' }
+]
+
 // An empty or non-numeric field must be omitted, not guessed: the route falls
 // back to the saved value for any key the request leaves out.
 function optionalInt(value: string): number | undefined {
   if (value.trim() === '') return undefined
   const parsed = Number.parseInt(value, 10)
   return Number.isFinite(parsed) ? parsed : undefined
+}
+
+/**
+ * One comparison unit for "what does this field say".
+ *
+ * The draft is always text (it comes from inputs), while `savedSnapshot` sends
+ * excerpt_limit / max_message_chars as integers and the rest as strings. Both
+ * sides go through this function, so `80` and `'80'` compare equal and a type
+ * difference can never fake a dirty state.
+ */
+function fieldText(value: unknown): string | null {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return null
 }
 
 function insertAtCursor(control: HTMLTextAreaElement, token: string): void {
@@ -144,6 +168,42 @@ function createPreview(ctx: AppContext) {
   const toggle = el('button', { type: 'button', class: 'qqbot-btn qqbot-btn--ghost qqbot-preview__mode' })
   const notice = el('div', { class: 'qqbot-preview__notice' }, dirtyText, toggle)
   notice.hidden = true
+  const sampleNote = el('span', { class: 'qqbot-preview__sampled' }, ctx.t('template.sampleUsed'))
+  sampleNote.hidden = true
+
+  const sampleValues: Record<string, string> = {}
+  const sampleGrid = el('div', { class: 'qqbot-preview__sample-grid' })
+  for (const field of SAMPLE_FIELDS) {
+    sampleValues[field.token] = ''
+    const id = `qqbot-sample-${field.token}`
+    const input = el('input', {
+      type: 'text',
+      id,
+      class: 'qqbot-input',
+      autocomplete: 'off',
+      spellcheck: 'false',
+      placeholder: `{{${field.token}}}`
+    })
+    input.addEventListener('input', () => {
+      sampleValues[field.token] = input.value
+      schedule()
+    })
+    sampleGrid.append(
+      el(
+        'div',
+        { class: 'qqbot-preview__sample-field' },
+        el('label', { for: id }, ctx.t(field.label)),
+        input
+      )
+    )
+  }
+  const sampleSection = el(
+    'details',
+    { class: 'qqbot-preview__sample' },
+    el('summary', { class: 'qqbot-preview__sample-summary' }, ctx.t('template.sample')),
+    el('p', { class: 'qqbot-preview__sample-hint' }, ctx.t('template.sampleHint')),
+    sampleGrid
+  )
   // Screen-reader announcement only: the visible character count is right here.
   const live = el('p', { class: 'qqbot-sr-only', role: 'status', 'aria-live': 'polite' })
 
@@ -155,10 +215,12 @@ function createPreview(ctx: AppContext) {
       { class: 'qqbot-preview__head' },
       el('h4', { class: 'qqbot-preview__title', id: titleId }, ctx.t('template.preview')),
       badge,
+      sampleNote,
       count,
       truncated
     ),
     notice,
+    sampleSection,
     body,
     unknown,
     live
@@ -175,7 +237,7 @@ function createPreview(ctx: AppContext) {
 
   // PREVIEW_KEYS is also the set of keys that change what gets rendered, which
   // is what the saved/draft comparison has to look at.
-  const isDirty = () => PREVIEW_KEYS.some(key => (ctx.getValue(key) ?? '') !== (ctx.savedValues[key] ?? ''))
+  const isDirty = () => PREVIEW_KEYS.some(key => fieldText(ctx.getValue(key)) !== fieldText(ctx.savedValues[key]))
 
   /** Repaints the mode badge and the dirty hint; returns whether the draft is being previewed. */
   const paint = () => {
@@ -192,12 +254,45 @@ function createPreview(ctx: AppContext) {
     return draftMode
   }
 
+  /** Only the fields the operator actually filled; nothing at all when all are blank. */
+  const sampleOf = (): Record<string, string> | undefined => {
+    const sample: Record<string, string> = {}
+    for (const field of SAMPLE_FIELDS) {
+      const value = sampleValues[field.token] ?? ''
+      if (value.trim() !== '') sample[field.token] = value
+    }
+    return Object.keys(sample).length > 0 ? sample : undefined
+  }
+
+  /**
+   * Adopt the server's own saved configuration as the baseline. A missing or
+   * malformed snapshot leaves the previous baseline untouched: guessing here is
+   * exactly what the savedSnapshot contract exists to avoid, and a stale
+   * baseline fails safe (the dirty hint stays visible).
+   */
+  const applySnapshot = (value: unknown) => {
+    // Present-or-not is decided by the field itself: a draft answer simply has
+    // no savedSnapshot (not null), so nothing here may treat "empty" as truthy.
+    if (value === undefined || value === null || typeof value !== 'object') return
+    const snapshot = value as Record<string, unknown>
+    for (const key of PREVIEW_KEYS) {
+      const next = fieldText(snapshot[key])
+      if (next !== null) ctx.savedValues[key] = next
+    }
+    // The baseline just moved, so the dirty hint has to be recomputed.
+    paint()
+  }
+
   /**
    * Saved mode carries no draft field at all: the route renders the stored
    * settings, which is what a push would actually send.
    */
   const buildPayload = (draftMode: boolean): Record<string, unknown> => {
-    if (!draftMode) return { source: 'saved' }
+    const sample = sampleOf()
+    // sample is orthogonal to the source: it replaces the built-in sample in
+    // both modes, so it rides along either way.
+    const withSample = sample === undefined ? {} : { sample }
+    if (!draftMode) return { source: 'saved', ...withSample }
     const excerptLimit = optionalInt(ctx.getValue('excerpt_limit'))
     const maxMessageChars = optionalInt(ctx.getValue('max_message_chars'))
     return {
@@ -206,7 +301,8 @@ function createPreview(ctx: AppContext) {
       format: ctx.getValue('message_format') || 'text',
       signature: ctx.getValue('signature'),
       ...(excerptLimit === undefined ? {} : { excerptLimit }),
-      ...(maxMessageChars === undefined ? {} : { maxMessageChars })
+      ...(maxMessageChars === undefined ? {} : { maxMessageChars }),
+      ...withSample
     }
   }
 
@@ -246,6 +342,10 @@ function createPreview(ctx: AppContext) {
         : Array.from(text).length
       setText(text, reported)
       truncated.hidden = response?.truncated !== true
+      sampleNote.hidden = response?.sampleUsed !== true
+      // Only a saved answer can move the baseline; draft answers never carry a
+      // snapshot, and one that did would still be ignored here.
+      if (!draftMode) applySnapshot(response?.savedSnapshot)
       unknown.hidden = variables.length === 0
       if (variables.length > 0) {
         unknown.replaceChildren(
@@ -258,6 +358,7 @@ function createPreview(ctx: AppContext) {
     } catch {
       if (mine !== sequence || ctx.disposed) return false
       truncated.hidden = true
+      sampleNote.hidden = true
       unknown.hidden = true
       body.classList.add('is-empty')
       body.textContent = ctx.t('template.previewFailed')

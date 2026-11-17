@@ -558,6 +558,60 @@
   font-size: 0.75rem;
 }
 
+/* ---------- sample overrides ---------- */
+
+.qqbot-preview__sample {
+  border-bottom: 1px dashed color-mix(in srgb, var(--qq-text) 16%, transparent);
+}
+
+.qqbot-preview__sample-summary {
+  padding: 0.4rem 0.8rem;
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.qqbot-preview__sample-summary:focus-visible {
+  outline: 2px solid var(--qq-accent);
+  outline-offset: -2px;
+}
+
+.qqbot-preview__sample-hint {
+  padding: 0 0.8rem;
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.qqbot-preview__sample-grid {
+  display: grid;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.8rem 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.qqbot-preview__sample-field {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.qqbot-preview__sample-field label {
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+}
+
+.qqbot-preview__sample-field .qqbot-input {
+  min-height: 1.9rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.qqbot-preview__sampled {
+  color: var(--qq-muted);
+  font-size: 0.6875rem;
+}
+
 .qqbot-preview__title {
   font-size: 0.75rem;
   font-weight: 650;

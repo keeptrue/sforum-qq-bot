@@ -425,12 +425,12 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 	}
 	addEccAndInterleave(e) {
 		let t = this.version, n = this.ecc;
-		if (e.length !== j(t, n)) throw RangeError("Invalid argument");
-		let r = _[n[0]][t], i = g[n[0]][t], a = Math.floor(A(t) / 8), o = r - a % r, s = Math.floor(a / r), c = [], l = ie(i);
+		if (e.length !== N(t, n)) throw RangeError("Invalid argument");
+		let r = _[n[0]][t], i = g[n[0]][t], a = Math.floor(M(t) / 8), o = r - a % r, s = Math.floor(a / r), c = [], l = ne(i);
 		for (let t = 0, n = 0; t < r; t++) {
 			let r = e.slice(n, n + s - i + (t < o ? 0 : 1));
 			n += r.length;
-			let a = ae(r, l);
+			let a = re(r, l);
 			t < o && r.push(0), c.push(r.concat(a));
 		}
 		let u = [];
@@ -440,7 +440,7 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 		return u;
 	}
 	drawCodewords(e) {
-		if (e.length !== Math.floor(A(this.version) / 8)) throw RangeError("Invalid argument");
+		if (e.length !== Math.floor(M(this.version) / 8)) throw RangeError("Invalid argument");
 		let t = 0;
 		for (let n = this.size - 1; n >= 1; n -= 2) {
 			n === 6 && (n = 5);
@@ -579,8 +579,8 @@ function E(e) {
 	for (let n of e) y(n, 8, t);
 	return new x(w, e.length, t);
 }
-function ee(e) {
-	if (!D(e)) throw RangeError("String contains non-numeric characters");
+function D(e) {
+	if (!A(e)) throw RangeError("String contains non-numeric characters");
 	let t = [];
 	for (let n = 0; n < e.length;) {
 		let r = Math.min(e.length - n, 3);
@@ -588,8 +588,8 @@ function ee(e) {
 	}
 	return new x(S, e.length, t);
 }
-function te(e) {
-	if (!O(e)) throw RangeError("String contains unencodable characters in alphanumeric mode");
+function O(e) {
+	if (!j(e)) throw RangeError("String contains unencodable characters in alphanumeric mode");
 	let t = [], n = 0;
 	for (; n + 2 <= e.length; n += 2) {
 		let r = l.indexOf(e.charAt(n)) * 45;
@@ -597,16 +597,16 @@ function te(e) {
 	}
 	return n < e.length && y(l.indexOf(e.charAt(n)), 6, t), new x(C, e.length, t);
 }
-function ne(e) {
-	return e === "" ? [] : D(e) ? [ee(e)] : O(e) ? [te(e)] : [E(k(e))];
+function k(e) {
+	return e === "" ? [] : A(e) ? [D(e)] : j(e) ? [O(e)] : [E(te(e))];
 }
-function D(e) {
+function A(e) {
 	return s.test(e);
 }
-function O(e) {
+function j(e) {
 	return c.test(e);
 }
-function re(e, t) {
+function ee(e, t) {
 	let n = 0;
 	for (let r of e) {
 		let e = T(r.mode, t);
@@ -615,13 +615,13 @@ function re(e, t) {
 	}
 	return n;
 }
-function k(e) {
+function te(e) {
 	e = encodeURI(e);
 	let t = [];
 	for (let n = 0; n < e.length; n++) e.charAt(n) === "%" ? (t.push(Number.parseInt(e.substring(n + 1, n + 3), 16)), n += 2) : t.push(e.charCodeAt(n));
 	return t;
 }
-function A(e) {
+function M(e) {
 	if (e < u || e > d) throw RangeError("Version number out of range");
 	let t = (16 * e + 128) * e + 64;
 	if (e >= 2) {
@@ -630,40 +630,40 @@ function A(e) {
 	}
 	return t;
 }
-function j(e, t) {
-	return Math.floor(A(e) / 8) - g[t[0]][e] * _[t[0]][e];
+function N(e, t) {
+	return Math.floor(M(e) / 8) - g[t[0]][e] * _[t[0]][e];
 }
-function ie(e) {
+function ne(e) {
 	if (e < 1 || e > 255) throw RangeError("Degree out of range");
 	let t = [];
 	for (let n = 0; n < e - 1; n++) t.push(0);
 	t.push(1);
 	let n = 1;
 	for (let r = 0; r < e; r++) {
-		for (let e = 0; e < t.length; e++) t[e] = M(t[e], n), e + 1 < t.length && (t[e] ^= t[e + 1]);
-		n = M(n, 2);
+		for (let e = 0; e < t.length; e++) t[e] = P(t[e], n), e + 1 < t.length && (t[e] ^= t[e + 1]);
+		n = P(n, 2);
 	}
 	return t;
 }
-function ae(e, t) {
+function re(e, t) {
 	let n = t.map((e) => 0);
 	for (let r of e) {
 		let e = r ^ n.shift();
-		n.push(0), t.forEach((t, r) => n[r] ^= M(t, e));
+		n.push(0), t.forEach((t, r) => n[r] ^= P(t, e));
 	}
 	return n;
 }
-function M(e, t) {
+function P(e, t) {
 	if (e >>> 8 || t >>> 8) throw RangeError("Byte out of range");
 	let n = 0;
 	for (let r = 7; r >= 0; r--) n = n << 1 ^ (n >>> 7) * 285, n ^= (t >>> r & 1) * e;
 	return n;
 }
-function oe(e, t, n = 1, o = 40, s = -1, c = !0) {
+function ie(e, t, n = 1, o = 40, s = -1, c = !0) {
 	if (!(u <= n && n <= o && o <= d) || s < -1 || s > 7) throw RangeError("Invalid value");
 	let l, f;
 	for (l = n;; l++) {
-		let n = j(l, t) * 8, r = re(e, l);
+		let n = N(l, t) * 8, r = ee(e, l);
 		if (r <= n) {
 			f = r;
 			break;
@@ -674,22 +674,22 @@ function oe(e, t, n = 1, o = 40, s = -1, c = !0) {
 		r,
 		i,
 		a
-	]) c && f <= j(l, e) * 8 && (t = e);
+	]) c && f <= N(l, e) * 8 && (t = e);
 	let p = [];
 	for (let t of e) {
 		y(t.mode[0], 4, p), y(t.numChars, T(t.mode, l), p);
 		for (let e of t.getData()) p.push(e);
 	}
-	let m = j(l, t) * 8;
+	let m = N(l, t) * 8;
 	y(0, Math.min(4, m - p.length), p), y(0, (8 - p.length % 8) % 8, p);
 	for (let e = 236; p.length < m; e ^= 253) y(e, 8, p);
 	let h = Array.from({ length: Math.ceil(p.length / 8) }, () => 0);
 	return p.forEach((e, t) => h[t >>> 3] |= e << 7 - (t & 7)), new v(l, t, h, s);
 }
-function se(e, t) {
-	let { ecc: n = "L", boostEcc: r = !1, minVersion: i = 1, maxVersion: a = 40, maskPattern: s = -1, border: c = 1 } = t || {}, l = typeof e == "string" ? ne(e) : Array.isArray(e) ? [E(e)] : void 0;
+function ae(e, t) {
+	let { ecc: n = "L", boostEcc: r = !1, minVersion: i = 1, maxVersion: a = 40, maskPattern: s = -1, border: c = 1 } = t || {}, l = typeof e == "string" ? k(e) : Array.isArray(e) ? [E(e)] : void 0;
 	if (!l) throw Error(`uqr only supports encoding string and binary data, but got: ${typeof e}`);
-	let u = oe(l, o[n], i, a, s, r), d = ce({
+	let u = ie(l, o[n], i, a, s, r), d = oe({
 		version: u.version,
 		maskPattern: u.mask,
 		size: u.size,
@@ -698,7 +698,7 @@ function se(e, t) {
 	}, c);
 	return t?.invert && (d.data = d.data.map((e) => e.map((e) => !e))), t?.onEncoded?.(d), d;
 }
-function ce(e, n = 1) {
+function oe(e, n = 1) {
 	if (!n) return e;
 	let { size: r } = e, i = r + n * 2;
 	e.size = i, e.data.forEach((e) => {
@@ -712,22 +712,22 @@ function ce(e, n = 1) {
 	for (let t = 0; t < n; t++) e.types.unshift(Array.from({ length: i }, (e) => a)), e.types.push(Array.from({ length: i }, (e) => a));
 	return e;
 }
-function N(e) {
+function F(e) {
 	return e.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-function le(e, t = {}) {
-	let n = se(e, t), { pixelSize: r = 10, whiteColor: i = "white", blackColor: a = "black" } = t, o = n.size * r, s = n.size * r, c = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${s} ${o}">`, l = [];
+function se(e, t = {}) {
+	let n = ae(e, t), { pixelSize: r = 10, whiteColor: i = "white", blackColor: a = "black" } = t, o = n.size * r, s = n.size * r, c = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${s} ${o}">`, l = [];
 	for (let e = 0; e < n.size; e++) for (let t = 0; t < n.size; t++) {
 		let i = t * r, a = e * r;
 		n.data[e][t] && l.push(`M${i},${a}h${r}v${r}h-${r}z`);
 	}
-	return c += `<rect fill="${N(i)}" width="${s}" height="${o}"/>`, c += `<path fill="${N(a)}" d="${l.join("")}"/>`, c += "</svg>", c;
+	return c += `<rect fill="${F(i)}" width="${s}" height="${o}"/>`, c += `<path fill="${F(a)}" d="${l.join("")}"/>`, c += "</svg>", c;
 }
 // src/bind-card.ts
-var ue = 1500, de = 500, fe = 300, pe = 3;
-function me(e) {
+var ce = 1500, le = 500, ue = 300, de = 3;
+function fe(e) {
 	try {
-		let t = le(e, {
+		let t = se(e, {
 			ecc: "M",
 			border: 2,
 			pixelSize: 4,
@@ -739,11 +739,11 @@ function me(e) {
 		return null;
 	}
 }
-function he(e) {
+function pe(e) {
 	let t = Math.max(0, Math.floor(e)), n = Math.floor(t / 60);
 	return `${String(n).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 }
-function P(t) {
+function me(t) {
 	let n = "qqbot-bind-title", r = e("div", { class: "qqbot-bind__body" }), i = e("p", {
 		class: "qqbot-live",
 		role: "status",
@@ -757,7 +757,7 @@ function P(t) {
 	}, t.t("bind.title")), e("p", { class: "qqbot-card__hint" }, t.t("bind.hint"))), r, i), o = t.getValue("app_id") !== "" || t.secretSaved ? "ready" : "idle", s = t.getValue("app_id"), c = "", l = "", u = 0, d = 0, f = 0, p, m, h = null, g = null, _ = () => {
 		p !== void 0 && window.clearInterval(p), m !== void 0 && window.clearInterval(m), p = void 0, m = void 0, h = null;
 	}, v = () => {
-		h && (h.textContent = t.t("bind.expires", { time: he((u - Date.now()) / 1e3) }));
+		h && (h.textContent = t.t("bind.expires", { time: pe((u - Date.now()) / 1e3) }));
 	}, y = (t, n, r) => {
 		let i = e("button", {
 			type: "button",
@@ -807,7 +807,7 @@ function P(t) {
 		r.replaceChildren(...n), c && c.focus();
 	}, S = (e) => {
 		let t = typeof e == "number" ? e : Number(e);
-		return Number.isFinite(t) && t > 0 ? t : fe;
+		return Number.isFinite(t) && t > 0 ? t : ue;
 	}, C = () => {
 		_(), o = "expired", x();
 	}, w = async (e, n) => {
@@ -834,7 +834,7 @@ function P(t) {
 			});
 		} catch {
 			if (e !== d || t.disposed) return;
-			f += 1, f >= pe && (o = "error", x());
+			f += 1, f >= de && (o = "error", x());
 			return;
 		}
 		if (e !== d || t.disposed) return;
@@ -856,11 +856,11 @@ function P(t) {
 				o = "error", x();
 				return;
 			}
-			c = r, l = i, u = Date.now() + S(n.expiresInSeconds) * 1e3, g = me(l), o = "waiting", x(), m = window.setInterval(() => {
+			c = r, l = i, u = Date.now() + S(n.expiresInSeconds) * 1e3, g = fe(l), o = "waiting", x(), m = window.setInterval(() => {
 				o === "waiting" && (Date.now() >= u ? C() : v());
-			}, de), p = window.setInterval(() => {
+			}, le), p = window.setInterval(() => {
 				T(e);
-			}, ue);
+			}, ce);
 		} catch {
 			if (e !== d || t.disposed) return;
 			o = "error", x();
@@ -874,14 +874,14 @@ function P(t) {
 	};
 }
 // src/footer.ts
-var F = 4e3;
+var he = 4e3;
 function I(e) {
 	return (/* @__PURE__ */ new Date()).toLocaleTimeString(e.zh ? "zh-CN" : "en-US", {
 		hour: "2-digit",
 		minute: "2-digit"
 	});
 }
-function L(t) {
+function ge(t) {
 	let n = "qqbot-footer-title", r = e("pre", { class: "qqbot-output" });
 	r.hidden = !0;
 	let i = e("p", {
@@ -918,7 +918,7 @@ function L(t) {
 		c !== void 0 && window.clearTimeout(c), c = void 0, s = !1, m();
 	};
 	function v() {
-		o || (s ? b() : (s = !0, m(), c = window.setTimeout(_, F)));
+		o || (s ? b() : (s = !0, m(), c = window.setTimeout(_, he)));
 	}
 	async function y() {
 		if (!o) {
@@ -984,11 +984,11 @@ function L(t) {
 	};
 }
 // src/form.ts
-var R = {
+var _e = {
 	group_ids: 4,
 	category_filter: 4,
 	message_template: 10
-}, ge = {
+}, ve = {
 	excerpt_limit: {
 		min: 0,
 		max: 5e3,
@@ -1020,16 +1020,16 @@ var R = {
 		step: 1
 	}
 };
-function z(e) {
+function L(e) {
 	return e instanceof HTMLInputElement && e.type === "checkbox" ? e.checked ? "true" : "false" : e.value;
 }
-function B(t, n) {
+function R(t, n) {
 	return t.description ? e("p", {
 		class: "qqbot-field__desc",
 		id: n
 	}, t.description) : null;
 }
-function V(t, n) {
+function z(t, n) {
 	let r = t.item(n);
 	if (!r) return null;
 	let i = `sforum-qqbot-${n}`, a = `${i}-desc`, o = r.description ? { "aria-describedby": a } : {};
@@ -1046,8 +1046,8 @@ function V(t, n) {
 		}, e("label", {
 			class: "qqbot-check",
 			for: i
-		}, s, e("span", {}, r.label || n)), B(r, a));
-		return t.registerControl(n, s, () => z(s)), {
+		}, s, e("span", {}, r.label || n)), R(r, a));
+		return t.registerControl(n, s, () => L(s)), {
 			root: c,
 			control: s,
 			item: r
@@ -1070,7 +1070,7 @@ function V(t, n) {
 	} else if (r.type === "textarea") {
 		let a = e("textarea", {
 			id: i,
-			rows: R[n] ?? 3,
+			rows: _e[n] ?? 3,
 			class: n === "message_template" ? "qqbot-input qqbot-input--mono" : "qqbot-input",
 			placeholder: r.placeholder || "",
 			spellcheck: "false",
@@ -1078,7 +1078,7 @@ function V(t, n) {
 		});
 		a.value = t.getValue(n), s = a;
 	} else if (r.type === "number") {
-		let r = ge[n], a = e("input", {
+		let r = ve[n], a = e("input", {
 			type: "number",
 			id: i,
 			class: "qqbot-input",
@@ -1118,23 +1118,23 @@ function V(t, n) {
 	}, e("div", { class: "qqbot-field__head" }, e("label", {
 		class: "qqbot-field__label",
 		for: i
-	}, r.label || n), l), s, c, B(r, a));
+	}, r.label || n), l), s, c, R(r, a));
 	if (r.type === "secret") {
 		let e = s;
 		t.onSecretSavedChange(() => {
 			e.placeholder = t.secretSaved ? t.t("field.keepSecret") : t.t("field.secretPlaceholder"), l && (l.hidden = !t.secretSaved);
 		});
 	}
-	return t.registerControl(n, s, () => z(s)), {
+	return t.registerControl(n, s, () => L(s)), {
 		root: u,
 		control: s,
 		item: r
 	};
 }
-function H(t, n) {
+function B(t, n) {
 	let r = `qqbot-section-${n.id}`, i = e("div", { class: "qqbot-grid" });
 	for (let e of n.keys) {
-		let n = V(t, e);
+		let n = z(t, e);
 		n && i.append(n.root);
 	}
 	return e("section", {
@@ -1146,32 +1146,32 @@ function H(t, n) {
 	}, n.title), n.hint ? e("p", { class: "qqbot-card__hint" }, n.hint) : null), i);
 }
 // src/groups-card.ts
-var U = "group_ids", _e = 6, ve = {
+var V = "group_ids", ye = 6, be = {
 	year: "numeric",
 	month: "2-digit",
 	day: "2-digit",
 	hour: "2-digit",
 	minute: "2-digit"
 };
-function W(e) {
+function H(e) {
 	return typeof e == "string" ? e : "";
 }
-function G(e) {
+function U(e) {
 	return typeof e == "number" && Number.isFinite(e) && e > 0 ? Math.floor(e) : 0;
 }
-function K(e) {
+function W(e) {
 	return e.split(",").map((e) => e.trim());
 }
-function q(e, t) {
-	return e.split("\n").some((e) => K(e).some((e) => e === t));
+function G(e, t) {
+	return e.split("\n").some((e) => W(e).some((e) => e === t));
 }
-function ye(e, t) {
+function xe(e, t) {
 	return `${e}${e === "" || e.endsWith("\n") ? "" : "\n"}${t}`;
 }
-function be(e, t) {
+function Se(e, t) {
 	let n = [];
 	for (let r of e.split("\n")) {
-		let e = K(r);
+		let e = W(r);
 		if (!e.some((e) => e === t)) {
 			n.push(r);
 			continue;
@@ -1182,26 +1182,26 @@ function be(e, t) {
 	let r = n.join("\n");
 	return e.endsWith("\n") && r !== "" && !r.endsWith("\n") ? `${r}\n` : r;
 }
-function xe(e) {
+function Ce(e) {
 	if (!Array.isArray(e)) return [];
 	let t = [];
 	for (let n of e) {
 		if (!n || typeof n != "object") continue;
-		let e = n, r = W(e.openid).trim();
+		let e = n, r = H(e.openid).trim();
 		if (r === "") continue;
-		let i = W(e.name).trim(), a = W(e.lastSeenAt), o = Date.parse(a);
+		let i = H(e.name).trim(), a = H(e.lastSeenAt), o = Date.parse(a);
 		t.push({
 			openid: r,
 			name: i,
 			nameUnavailable: e.nameUnavailable === !0,
-			count: G(e.count),
+			count: U(e.count),
 			lastSeen: Number.isFinite(o) ? o : -Infinity,
 			lastSeenText: a
 		});
 	}
 	return t.sort((e, t) => t.lastSeen - e.lastSeen);
 }
-function Se(t) {
+function we(t) {
 	let n = "qqbot-groups-title", r = e("p", {
 		class: "qqbot-groups__status",
 		role: "status",
@@ -1225,14 +1225,14 @@ function Se(t) {
 	}, f = (e) => {
 		r.textContent = e;
 	}, p = () => {
-		let e = t.getValue(U);
-		for (let [t, n] of c) n.checked = q(e, t);
+		let e = t.getValue(V);
+		for (let [t, n] of c) n.checked = G(e, t);
 	}, m = (e, n) => {
-		let r = t.getValue(U);
-		t.setValue(U, n.checked ? ye(r, e) : be(r, e)), p();
-	}, h = (e) => e.name !== "" && !e.nameUnavailable ? e.name : `${e.openid.slice(0, _e)}…`, g = (e) => {
+		let r = t.getValue(V);
+		t.setValue(V, n.checked ? xe(r, e) : Se(r, e)), p();
+	}, h = (e) => e.name !== "" && !e.nameUnavailable ? e.name : `${e.openid.slice(0, ye)}…`, g = (e) => {
 		let n = Date.parse(e.lastSeenText);
-		return Number.isFinite(n) ? new Date(n).toLocaleString(t.zh ? "zh-CN" : "en-US", ve) : e.lastSeenText;
+		return Number.isFinite(n) ? new Date(n).toLocaleString(t.zh ? "zh-CN" : "en-US", be) : e.lastSeenText;
 	}, _ = (n) => {
 		c.clear(), a.replaceChildren(), n.forEach((n, r) => {
 			let i = `qqbot-group-${r}`, o = e("input", {
@@ -1240,7 +1240,7 @@ function Se(t) {
 				id: i,
 				class: "qqbot-groups__box"
 			});
-			o.checked = q(t.getValue(U), n.openid), o.addEventListener("change", () => m(n.openid, o)), c.set(n.openid, o), a.append(e("li", { class: "qqbot-groups__row" }, o, e("label", {
+			o.checked = G(t.getValue(V), n.openid), o.addEventListener("change", () => m(n.openid, o)), c.set(n.openid, o), a.append(e("li", { class: "qqbot-groups__row" }, o, e("label", {
 				class: "qqbot-groups__label",
 				for: i
 			}, e("span", {
@@ -1252,7 +1252,7 @@ function Se(t) {
 			})))));
 		}), a.hidden = n.length === 0;
 	}, v = (e) => {
-		let n = xe(e?.groups), r = e?.claimEnabled !== !1, i = G(e?.recordingLimit);
+		let n = Ce(e?.groups), r = e?.claimEnabled !== !1, i = U(e?.recordingLimit);
 		_(n), r ? n.length === 0 ? d(t.t("groups.empty")) : i > 0 && n.length >= i ? d(t.t("groups.limit", { n: i })) : d("") : d(t.t("groups.claimOff")), f(t.t("groups.updated", { n: n.length }));
 	}, y = () => {
 		c.clear(), a.replaceChildren(), a.hidden = !0, d(t.t("groups.unavailable")), f(t.t("groups.unavailable"));
@@ -1278,7 +1278,7 @@ function Se(t) {
 	};
 	return o.addEventListener("click", () => {
 		b();
-	}), t.onInput([U], p), b(), {
+	}), t.onInput([V], p), b(), {
 		root: s,
 		destroy: () => {
 			u += 1, c.clear(), s.remove();
@@ -1286,7 +1286,7 @@ function Se(t) {
 	};
 }
 // src/i18n.ts
-var Ce = {
+var Te = {
 	"bind.title": "绑定 QQ 机器人",
 	"bind.hint": "用手机 QQ 扫码，AppID 与 AppSecret 会自动填好并保存；也可以手动填写。",
 	"bind.start": "扫码绑定",
@@ -1342,6 +1342,14 @@ var Ce = {
 	"template.previewDirtyDraft": "当前预览按草稿渲染，还没有保存；点保存后才会这样发出去。",
 	"template.previewUseDraft": "按草稿预览",
 	"template.previewUseSaved": "按已保存预览",
+	"template.sample": "样例数据",
+	"template.sampleHint": "给哪一项填就用哪一项，留空的沿用内置样例；摘要仍按上面的摘要长度上限截断。",
+	"template.sampleTitle": "标题",
+	"template.sampleAuthor": "作者",
+	"template.sampleCategory": "分类",
+	"template.sampleExcerpt": "摘要",
+	"template.sampleUrl": "链接",
+	"template.sampleUsed": "当前用你的样例数据渲染",
 	"template.previewEmpty": "（模板为空，渲染结果也是空的）",
 	"template.previewFailed": "预览暂时不可用；保存后推送仍会正常渲染。",
 	"template.truncated": "已截断",
@@ -1374,7 +1382,7 @@ var Ce = {
 	"error.serviceDetail": "后端可能刚重启或返回了错误；稍后再试，原始错误不会显示在这里。",
 	"error.generic": "操作没有成功，请重试。",
 	"error.saveFailed": "扫码成功，但自动保存没有生效，请检查后在页面底部手动保存。"
-}, we = {
+}, Ee = {
 	"bind.title": "Connect the QQ bot",
 	"bind.hint": "Scan with mobile QQ and AppID plus AppSecret are filled in and saved for you. You can also type them by hand.",
 	"bind.start": "Scan to connect",
@@ -1430,6 +1438,14 @@ var Ce = {
 	"template.previewDirtyDraft": "This preview renders the draft, which is not saved yet; save it to go out like this.",
 	"template.previewUseDraft": "Preview the draft",
 	"template.previewUseSaved": "Preview the saved settings",
+	"template.sample": "Sample data",
+	"template.sampleHint": "Fill a field to use it; blanks keep the built-in sample. The excerpt is still cut to the excerpt length above.",
+	"template.sampleTitle": "Title",
+	"template.sampleAuthor": "Author",
+	"template.sampleCategory": "Category",
+	"template.sampleExcerpt": "Excerpt",
+	"template.sampleUrl": "URL",
+	"template.sampleUsed": "Rendering with your sample data",
 	"template.previewEmpty": "(the template is empty, so the rendered message is empty)",
 	"template.previewFailed": "The preview is unavailable right now; pushes still render it.",
 	"template.truncated": "Truncated",
@@ -1463,8 +1479,8 @@ var Ce = {
 	"error.generic": "That did not work. Please try again.",
 	"error.saveFailed": "Scanned, but the automatic save did not take effect. Check the form and save it at the bottom of the page."
 };
-function Te(e) {
-	let t = (e || "").toLowerCase().startsWith("zh"), n = t ? Ce : we;
+function De(e) {
+	let t = (e || "").toLowerCase().startsWith("zh"), n = t ? Te : Ee;
 	return {
 		zh: t,
 		t: (e, t) => {
@@ -1475,7 +1491,7 @@ function Te(e) {
 	};
 }
 // src/template.ts
-var Ee = [
+var Oe = [
 	{
 		token: "title",
 		alias: "标题"
@@ -1512,13 +1528,13 @@ var Ee = [
 		token: "signature",
 		alias: "签名"
 	}
-], J = [
+], K = [
 	"message_template",
 	"message_format",
 	"signature",
 	"excerpt_limit",
 	"max_message_chars"
-], De = 300, Oe = [
+], ke = 300, Ae = [
 	{
 		label: "template.presetDefault",
 		text: null
@@ -1531,32 +1547,56 @@ var Ee = [
 		label: "template.presetNotice",
 		text: "【社区公告】{{title}}\n\n{{excerpt}}\n\n分类：{{category}}｜作者：{{author}}\n详情：{{url}}\n{{signature}}"
 	}
+], q = [
+	{
+		token: "title",
+		label: "template.sampleTitle"
+	},
+	{
+		token: "author",
+		label: "template.sampleAuthor"
+	},
+	{
+		token: "category",
+		label: "template.sampleCategory"
+	},
+	{
+		token: "excerpt",
+		label: "template.sampleExcerpt"
+	},
+	{
+		token: "url",
+		label: "template.sampleUrl"
+	}
 ];
-function Y(e) {
+function J(e) {
 	if (e.trim() === "") return;
 	let t = Number.parseInt(e, 10);
 	return Number.isFinite(t) ? t : void 0;
 }
-function ke(e, t) {
+function Y(e) {
+	return typeof e == "string" ? e : typeof e == "number" && Number.isFinite(e) ? String(e) : null;
+}
+function je(e, t) {
 	let n = document.activeElement === e, r = n ? e.selectionStart ?? e.value.length : e.value.length, i = n ? e.selectionEnd ?? r : r;
 	e.value = `${e.value.slice(0, r)}${t}${e.value.slice(i)}`, e.dispatchEvent(new Event("input", { bubbles: !0 }));
 	let a = r + t.length;
 	e.focus(), e.setSelectionRange(a, a);
 }
-function Ae(t, n) {
+function Me(t, n) {
 	let r = e("div", { class: "qqbot-chips" });
-	for (let i of Ee) {
+	for (let i of Oe) {
 		let a = `{{${i.token}}}`, o = e("button", {
 			type: "button",
 			class: "qqbot-chip",
 			title: t.zh ? `${a} / {{${i.alias}}}` : a,
 			"aria-label": t.zh ? `${a}（${i.alias}）` : a
 		}, e("code", {}, a), t.zh ? e("span", { class: "qqbot-chip__alias" }, i.alias) : null);
-		o.addEventListener("click", () => ke(n(), a)), r.append(o);
+		o.addEventListener("click", () => je(n(), a)), r.append(o);
 	}
 	return e("div", { class: "qqbot-tokens" }, e("p", { class: "qqbot-tokens__title" }, t.t("template.tokens")), r, e("p", { class: "qqbot-tokens__hint" }, t.t("template.tokensHint")));
 }
-function X(t, n) {
+function Ne(t, n) {
 	let r = "qqbot-presets-title", i = e("div", {
 		class: "qqbot-presets__row",
 		role: "group",
@@ -1564,7 +1604,7 @@ function X(t, n) {
 	}), a = [], o = () => {
 		for (let e of a) e.setAttribute("aria-pressed", "false");
 	}, s = t.item("message_template")?.default ?? "";
-	for (let r of Oe) {
+	for (let r of Ae) {
 		let c = r.text ?? s;
 		if (c === "") continue;
 		let l = e("button", {
@@ -1582,7 +1622,7 @@ function X(t, n) {
 		id: r
 	}, t.t("template.presets")), i);
 }
-function je(t) {
+function Pe(t) {
 	let n = "qqbot-preview-title", r = e("pre", { class: "qqbot-preview__body" }), i = e("span", { class: "qqbot-count" }), a = e("span", { class: "qqbot-badge" }), o = e("span", { class: "qqbot-badge qqbot-badge--warn" }, t.t("template.truncated"));
 	o.hidden = !0;
 	let s = e("p", { class: "qqbot-preview__unknown" });
@@ -1592,113 +1632,150 @@ function je(t) {
 		class: "qqbot-btn qqbot-btn--ghost qqbot-preview__mode"
 	}), u = e("div", { class: "qqbot-preview__notice" }, c, l);
 	u.hidden = !0;
-	let d = e("p", {
+	let d = e("span", { class: "qqbot-preview__sampled" }, t.t("template.sampleUsed"));
+	d.hidden = !0;
+	let f = {}, p = e("div", { class: "qqbot-preview__sample-grid" });
+	for (let n of q) {
+		f[n.token] = "";
+		let r = `qqbot-sample-${n.token}`, i = e("input", {
+			type: "text",
+			id: r,
+			class: "qqbot-input",
+			autocomplete: "off",
+			spellcheck: "false",
+			placeholder: `{{${n.token}}}`
+		});
+		i.addEventListener("input", () => {
+			f[n.token] = i.value, k();
+		}), p.append(e("div", { class: "qqbot-preview__sample-field" }, e("label", { for: r }, t.t(n.label)), i));
+	}
+	let m = e("details", { class: "qqbot-preview__sample" }, e("summary", { class: "qqbot-preview__sample-summary" }, t.t("template.sample")), e("p", { class: "qqbot-preview__sample-hint" }, t.t("template.sampleHint")), p), h = e("p", {
 		class: "qqbot-sr-only",
 		role: "status",
 		"aria-live": "polite"
-	}), f = e("div", {
+	}), g = e("div", {
 		class: "qqbot-preview",
 		"aria-labelledby": n
 	}, e("header", { class: "qqbot-preview__head" }, e("h4", {
 		class: "qqbot-preview__title",
 		id: n
-	}, t.t("template.preview")), a, i, o), u, r, s, d), p, m = 0, h = "saved", g = "", _ = !1, v = () => J.some((e) => (t.getValue(e) ?? "") !== (t.savedValues[e] ?? "")), y = () => {
-		let e = v(), n = e && h === "draft";
+	}, t.t("template.preview")), a, d, i, o), u, m, r, s, h), _, v = 0, y = "saved", b = "", x = !1, S = () => K.some((e) => Y(t.getValue(e)) !== Y(t.savedValues[e])), C = () => {
+		let e = S(), n = e && y === "draft";
 		return a.textContent = t.t(n ? "template.previewDraftBadge" : "template.previewSavedBadge"), a.classList.toggle("qqbot-badge--quiet", n), u.hidden = !e, l.hidden = !e, e && (c.textContent = t.t(n ? "template.previewDirtyDraft" : "template.previewDirty"), l.textContent = t.t(n ? "template.previewUseSaved" : "template.previewUseDraft")), n;
-	}, b = (e) => {
-		if (!e) return { source: "saved" };
-		let n = Y(t.getValue("excerpt_limit")), r = Y(t.getValue("max_message_chars"));
+	}, w = () => {
+		let e = {};
+		for (let t of q) {
+			let n = f[t.token] ?? "";
+			n.trim() !== "" && (e[t.token] = n);
+		}
+		return Object.keys(e).length > 0 ? e : void 0;
+	}, T = (e) => {
+		if (typeof e != "object" || !e) return;
+		let n = e;
+		for (let e of K) {
+			let r = Y(n[e]);
+			r !== null && (t.savedValues[e] = r);
+		}
+		C();
+	}, E = (e) => {
+		let n = w(), r = n === void 0 ? {} : { sample: n };
+		if (!e) return {
+			source: "saved",
+			...r
+		};
+		let i = J(t.getValue("excerpt_limit")), a = J(t.getValue("max_message_chars"));
 		return {
 			source: "draft",
 			template: t.getValue("message_template"),
 			format: t.getValue("message_format") || "text",
 			signature: t.getValue("signature"),
-			...n === void 0 ? {} : { excerptLimit: n },
-			...r === void 0 ? {} : { maxMessageChars: r }
+			...i === void 0 ? {} : { excerptLimit: i },
+			...a === void 0 ? {} : { maxMessageChars: a },
+			...r
 		};
-	}, x = (e, n) => {
+	}, D = (e, n) => {
 		let a = e === "";
-		r.classList.toggle("is-empty", a), r.textContent = a ? t.t("template.previewEmpty") : e, i.textContent = t.t("template.count", { n }), d.textContent = t.t("template.live", { n });
-	}, S = async () => {
-		let n = ++m, a = y(), c = b(a), l = JSON.stringify(c);
-		if (!(l === g && _)) {
-			g = l, _ = !1;
+		r.classList.toggle("is-empty", a), r.textContent = a ? t.t("template.previewEmpty") : e, i.textContent = t.t("template.count", { n }), h.textContent = t.t("template.live", { n });
+	}, O = async () => {
+		let n = ++v, a = C(), c = E(a), l = JSON.stringify(c);
+		if (!(l === b && x)) {
+			b = l, x = !1;
 			try {
 				let r = await t.bridge.request("/preview", {
 					method: "POST",
 					body: c,
 					responseMode: "body"
 				});
-				if (n !== m || t.disposed) return;
-				let i = typeof r?.text == "string" ? r.text : "", a = Array.isArray(r?.unknownVariables) ? r.unknownVariables.filter((e) => typeof e == "string" && e !== "") : [], l = typeof r?.characters == "number" && Number.isFinite(r.characters) && r.characters >= 0 ? Math.floor(r.characters) : Array.from(i).length;
-				return x(i, l), o.hidden = r?.truncated !== !0, s.hidden = a.length === 0, a.length > 0 && s.replaceChildren(document.createTextNode(`${t.t("template.unknown")}: `), ...a.map((t) => e("code", { class: "qqbot-preview__var" }, `{{${t}}}`))), _ = !0, !0;
+				if (n !== v || t.disposed) return;
+				let i = typeof r?.text == "string" ? r.text : "", l = Array.isArray(r?.unknownVariables) ? r.unknownVariables.filter((e) => typeof e == "string" && e !== "") : [], u = typeof r?.characters == "number" && Number.isFinite(r.characters) && r.characters >= 0 ? Math.floor(r.characters) : Array.from(i).length;
+				return D(i, u), o.hidden = r?.truncated !== !0, d.hidden = r?.sampleUsed !== !0, a || T(r?.savedSnapshot), s.hidden = l.length === 0, l.length > 0 && s.replaceChildren(document.createTextNode(`${t.t("template.unknown")}: `), ...l.map((t) => e("code", { class: "qqbot-preview__var" }, `{{${t}}}`))), x = !0, !0;
 			} catch {
-				return n !== m || t.disposed || (o.hidden = !0, s.hidden = !0, r.classList.add("is-empty"), r.textContent = t.t("template.previewFailed"), i.textContent = ""), !1;
+				return n !== v || t.disposed || (o.hidden = !0, d.hidden = !0, s.hidden = !0, r.classList.add("is-empty"), r.textContent = t.t("template.previewFailed"), i.textContent = ""), !1;
 			}
 		}
-	}, C = (e = De) => {
-		p !== void 0 && window.clearTimeout(p), p = window.setTimeout(() => {
-			p = void 0, S();
+	}, k = (e = ke) => {
+		_ !== void 0 && window.clearTimeout(_), _ = window.setTimeout(() => {
+			_ = void 0, O();
 		}, e);
 	};
 	return l.addEventListener("click", () => {
-		h = h === "draft" ? "saved" : "draft", C(0);
+		y = y === "draft" ? "saved" : "draft", k(0);
 	}), t.onSavedChange(() => {
-		h = "saved", g = "", _ = !1, C(0);
-	}), t.onInput(J, () => {
-		y();
-	}), t.onInput(J, C), y(), C(0), {
-		root: f,
+		y = "saved", b = "", x = !1, k(0);
+	}), t.onInput(K, () => {
+		C();
+	}), t.onInput(K, k), C(), k(0), {
+		root: g,
 		stop: () => {
-			p !== void 0 && window.clearTimeout(p), p = void 0;
+			_ !== void 0 && window.clearTimeout(_), _ = void 0;
 		}
 	};
 }
-function Me(e) {
-	let t = H(e, {
+function Fe(e) {
+	let t = B(e, {
 		id: "template",
 		keys: ["message_format", "excerpt_limit"],
 		title: e.t("group.template"),
 		hint: e.t("group.template.hint")
-	}), n = t.querySelector(".qqbot-grid"), r = V(e, "message_template");
+	}), n = t.querySelector(".qqbot-grid"), r = z(e, "message_template");
 	if (n && r) {
 		let t = () => r.control;
-		r.root.insertBefore(X(e, t), r.control), r.root.insertBefore(Ae(e, t), r.control), n.append(r.root);
+		r.root.insertBefore(Ne(e, t), r.control), r.root.insertBefore(Me(e, t), r.control), n.append(r.root);
 	}
-	let i = je(e);
+	let i = Pe(e);
 	n && n.append(i.root);
-	let a = V(e, "signature");
+	let a = z(e, "signature");
 	return n && a && n.append(a.root), {
 		root: t,
 		stop: i.stop
 	};
 }
 // src/app.ts
-var Z = {
+var X = {
 	connection: "group.connection",
 	targets: "group.targets",
 	template: "group.template",
 	limits: "group.limits",
 	probe: "group.probe"
-}, Q = {
+}, Z = {
 	connection: "group.connection.hint",
 	targets: "group.targets.hint",
 	template: "group.template.hint",
 	limits: "group.limits.hint",
 	probe: "group.probe.hint"
-}, $ = [
+}, Q = [
 	"connection",
 	"targets",
 	"template",
 	"limits",
 	"probe"
-], Ne = [
+], Ie = [
 	"message_template",
 	"message_format",
 	"signature",
 	"excerpt_limit",
 	"max_message_chars"
-], Pe = {
+], Le = {
 	route: {
 		title: "error.routeTitle",
 		detail: "error.routeDetail"
@@ -1716,7 +1793,7 @@ var Z = {
 		detail: "error.serviceDetail"
 	}
 };
-function Fe(e) {
+function $(e) {
 	if (!e || typeof e != "object") return;
 	let t = e;
 	for (let e of [
@@ -1726,12 +1803,12 @@ function Fe(e) {
 		t.cause?.status
 	]) if (typeof e == "number" && e >= 400 && e <= 599) return e;
 }
-function Ie(e) {
-	let t = Fe(e);
+function Re(e) {
+	let t = $(e);
 	return t === void 0 || t === 404 ? "route" : t === 401 || t === 403 ? "permission" : t === 429 ? "rate" : "service";
 }
-function Le(t) {
-	let n = Te(t.locale), r = n.t, i = t.settings.items ?? [], a = /* @__PURE__ */ new Map(), o = {}, s = {};
+function ze(t) {
+	let n = De(t.locale), r = n.t, i = t.settings.items ?? [], a = /* @__PURE__ */ new Map(), o = {}, s = {};
 	for (let e of i) {
 		a.set(e.key, e);
 		let t = typeof e.value == "string" ? e.value : e.default ?? "";
@@ -1743,7 +1820,7 @@ function Le(t) {
 	}, c, l);
 	u.hidden = !0;
 	let d = (e) => {
-		let t = Pe[e];
+		let t = Le[e];
 		c.textContent = r(t.title), l.textContent = r(t.detail), u.hidden = !1;
 	}, f = /* @__PURE__ */ new Map(), p = /* @__PURE__ */ new Map(), m = /* @__PURE__ */ new Set(), h = /* @__PURE__ */ new Set(), g = (e) => {
 		let t = p.get(e);
@@ -1768,7 +1845,7 @@ function Le(t) {
 				});
 				return u.hidden = !0, r;
 			} catch (e) {
-				throw d(Ie(e)), e;
+				throw d(Re(e)), e;
 			}
 		},
 		toast: (e, n, r) => t.toast({
@@ -1804,11 +1881,7 @@ function Le(t) {
 				if (typeof r != "string" || r === o[t]) continue;
 				o[t] = r;
 				let i = f.get(t);
-				i && _(i, r), Ne.includes(t) && (n = !0);
-			}
-			for (let t of Object.keys(s)) {
-				let n = e[t];
-				typeof n == "string" && (s[t] = n);
+				i && _(i, r), Ie.includes(t) && (n = !0);
 			}
 			for (let e of h) e();
 			n && g("message_template");
@@ -1823,19 +1896,19 @@ function Le(t) {
 		onSecretSavedChange: (e) => {
 			m.add(e);
 		}
-	}, y = P(v), b = Me(v), x = Se(v), S = L(v), C = /* @__PURE__ */ new Map();
+	}, y = me(v), b = Fe(v), x = we(v), S = ge(v), C = /* @__PURE__ */ new Map();
 	for (let e of i) {
 		let t = (e.groupId || "").trim() || "other", n = C.get(t);
 		n ? n.push(e) : C.set(t, [e]);
 	}
-	let w = [...$.filter((e) => C.has(e)), ...[...C.keys()].filter((e) => !$.includes(e))], T = [];
+	let w = [...Q.filter((e) => C.has(e)), ...[...C.keys()].filter((e) => !Q.includes(e))], T = [];
 	for (let e of w) {
 		let t = C.get(e) ?? [];
 		if (e === "template") {
 			T.push(b.root);
 			continue;
 		}
-		let n = e === "other" ? r("group.other") : Z[e] ? r(Z[e]) : e, i = e === "other" ? r("group.other.hint") : Q[e] ? r(Q[e]) : void 0, a = H(v, {
+		let n = e === "other" ? r("group.other") : X[e] ? r(X[e]) : e, i = e === "other" ? r("group.other.hint") : Z[e] ? r(Z[e]) : void 0, a = B(v, {
 			id: e,
 			keys: t.map((e) => e.key),
 			title: n,
@@ -1856,9 +1929,9 @@ function Le(t) {
 	};
 }
 // src/settings.ts
-var Re = 1;
-function ze(e, t) {
-	let n = Le(t);
+var Be = 1;
+function Ve(e, t) {
+	let n = ze(t);
 	return e.append(n.root), () => n.destroy();
 }
-export { Re as apiVersion, ze as mount };
+export { Be as apiVersion, Ve as mount };

@@ -19,6 +19,8 @@ export type PreviewResponse = {
   source?: unknown
   characters?: unknown
   sampleUsed?: unknown
+  /** Server truth for the saved configuration; only present when source=saved. */
+  savedSnapshot?: unknown
 }
 
 export type TestPushResponse = {

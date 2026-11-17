@@ -190,12 +190,10 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
         if (control) writeControl(control, next)
         if (PREVIEW_KEYS.includes(key)) previewDirty = true
       }
-      // The host re-seeds its form values from the save/reset response, so what
-      // it reports now is the new saved state; move the baseline with it.
-      for (const key of Object.keys(savedValues)) {
-        const next = values[key]
-        if (typeof next === 'string') savedValues[key] = next
-      }
+      // The baseline deliberately does NOT move here: the host swallows save
+      // failures (no rejection), so "we asked to save" says nothing about what
+      // is stored. Listeners re-ask the saved preview, whose savedSnapshot is
+      // the server's own config — that is what moves the baseline.
       for (const listener of savedListeners) listener()
       if (previewDirty) notifyInput('message_template')
     },
