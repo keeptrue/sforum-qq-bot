@@ -1,9 +1,12 @@
 import type { PreviewResponse } from './api'
 import { el } from './dom'
 import { createSection, renderField } from './form'
+import type { MessageKey } from './i18n'
 import type { AppContext } from './types'
 
 type Variable = Readonly<{ token: string, alias: string }>
+
+type Preset = Readonly<{ label: MessageKey, text: string | null }>
 
 // The nine variables the backend renders, in the order the manifest lists them.
 const VARIABLES: readonly Variable[] = [
@@ -20,6 +23,22 @@ const VARIABLES: readonly Variable[] = [
 
 const PREVIEW_KEYS = ['message_template', 'message_format', 'signature', 'excerpt_limit', 'max_message_chars'] as const
 const PREVIEW_DEBOUNCE_MS = 300
+
+// Presets are message bodies, not UI chrome: they stay in the language the
+// manifest writes its default in, so a preset reads the same on either UI
+// locale. They are component constants and never settings — a click only
+// rewrites the message_template draft.
+// "Default" carries no text of its own: it reads message_template.default from
+// the host payload, so the button can never drift from what "Restore defaults"
+// produces.
+const PRESETS: readonly Preset[] = [
+  { label: 'template.presetDefault', text: null },
+  { label: 'template.presetCompact', text: '【新帖】{{title}}\n{{url}}' },
+  {
+    label: 'template.presetNotice',
+    text: '【社区公告】{{title}}\n\n{{excerpt}}\n\n分类：{{category}}｜作者：{{author}}\n详情：{{url}}\n{{signature}}'
+  }
+]
 
 // An empty or non-numeric field must be omitted, not guessed: the route falls
 // back to the saved value for any key the request leaves out.
@@ -64,6 +83,51 @@ function chips(ctx: AppContext, getControl: () => HTMLTextAreaElement): HTMLElem
     el('p', { class: 'qqbot-tokens__title' }, ctx.t('template.tokens')),
     row,
     el('p', { class: 'qqbot-tokens__hint' }, ctx.t('template.tokensHint'))
+  )
+}
+
+function presets(ctx: AppContext, getControl: () => HTMLTextAreaElement): HTMLElement {
+  const titleId = 'qqbot-presets-title'
+  const row = el('div', { class: 'qqbot-presets__row', role: 'group', 'aria-labelledby': titleId })
+  const buttons: HTMLButtonElement[] = []
+  const clearPressed = () => {
+    for (const button of buttons) button.setAttribute('aria-pressed', 'false')
+  }
+
+  const manifestDefault = ctx.item('message_template')?.default ?? ''
+
+  for (const preset of PRESETS) {
+    const text = preset.text ?? manifestDefault
+    // No manifest default means there is nothing to restore.
+    if (text === '') continue
+    const button = el('button', { type: 'button', class: 'qqbot-preset', 'aria-pressed': 'false' }, ctx.t(preset.label))
+    button.addEventListener('click', () => {
+      const control = getControl()
+      // The input event is the same write path the variable chips use: app.ts
+      // mirrors the value into the host draft and reschedules the preview.
+      // Skipped when the text already matches, so a repeat click cannot spend
+      // the preview rate limit for nothing.
+      if (control.value !== text) {
+        control.value = text
+        control.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      clearPressed()
+      button.setAttribute('aria-pressed', 'true')
+      control.focus()
+      control.setSelectionRange(text.length, text.length)
+    })
+    buttons.push(button)
+    row.append(button)
+  }
+
+  // Typing by hand means the text is no longer one of the presets.
+  getControl().addEventListener('input', clearPressed)
+
+  return el(
+    'div',
+    { class: 'qqbot-presets' },
+    el('p', { class: 'qqbot-presets__title', id: titleId }, ctx.t('template.presets')),
+    row
   )
 }
 
@@ -177,8 +241,11 @@ export function createTemplateSection(ctx: AppContext): Readonly<{ root: HTMLEle
 
   const templateField = renderField(ctx, 'message_template')
   if (grid && templateField) {
-    const tokens = chips(ctx, () => templateField.control as HTMLTextAreaElement)
-    templateField.root.insertBefore(tokens, templateField.control)
+    const control = () => templateField.control as HTMLTextAreaElement
+    // Presets replace the whole body, the chips edit what is already there:
+    // presets sit above the chips, both above the textarea.
+    templateField.root.insertBefore(presets(ctx, control), templateField.control)
+    templateField.root.insertBefore(chips(ctx, control), templateField.control)
     grid.append(templateField.root)
   }
 

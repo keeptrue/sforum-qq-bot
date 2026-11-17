@@ -724,8 +724,8 @@ function le(e, t = {}) {
 	return c += `<rect fill="${N(i)}" width="${s}" height="${o}"/>`, c += `<path fill="${N(a)}" d="${l.join("")}"/>`, c += "</svg>", c;
 }
 // src/bind-card.ts
-var P = 1500, F = 500, I = 300, L = 3;
-function R(e) {
+var ue = 1500, de = 500, fe = 300, pe = 3;
+function me(e) {
 	try {
 		let t = le(e, {
 			ecc: "M",
@@ -739,11 +739,11 @@ function R(e) {
 		return null;
 	}
 }
-function z(e) {
+function P(e) {
 	let t = Math.max(0, Math.floor(e)), n = Math.floor(t / 60);
 	return `${String(n).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 }
-function B(t) {
+function F(t) {
 	let n = "qqbot-bind-title", r = e("div", { class: "qqbot-bind__body" }), i = e("p", {
 		class: "qqbot-live",
 		role: "status",
@@ -757,7 +757,7 @@ function B(t) {
 	}, t.t("bind.title")), e("p", { class: "qqbot-card__hint" }, t.t("bind.hint"))), r, i), o = t.getValue("app_id") !== "" || t.secretSaved ? "ready" : "idle", s = t.getValue("app_id"), c = "", l = "", u = 0, d = 0, f = 0, p, m, h = null, g = null, _ = () => {
 		p !== void 0 && window.clearInterval(p), m !== void 0 && window.clearInterval(m), p = void 0, m = void 0, h = null;
 	}, v = () => {
-		h && (h.textContent = t.t("bind.expires", { time: z((u - Date.now()) / 1e3) }));
+		h && (h.textContent = t.t("bind.expires", { time: P((u - Date.now()) / 1e3) }));
 	}, y = (t, n, r) => {
 		let i = e("button", {
 			type: "button",
@@ -807,7 +807,7 @@ function B(t) {
 		r.replaceChildren(...n), c && c.focus();
 	}, S = (e) => {
 		let t = typeof e == "number" ? e : Number(e);
-		return Number.isFinite(t) && t > 0 ? t : I;
+		return Number.isFinite(t) && t > 0 ? t : fe;
 	}, C = () => {
 		_(), o = "expired", x();
 	}, w = async (e, n) => {
@@ -834,7 +834,7 @@ function B(t) {
 			});
 		} catch {
 			if (e !== d || t.disposed) return;
-			f += 1, f >= L && (o = "error", x());
+			f += 1, f >= pe && (o = "error", x());
 			return;
 		}
 		if (e !== d || t.disposed) return;
@@ -856,11 +856,11 @@ function B(t) {
 				o = "error", x();
 				return;
 			}
-			c = r, l = i, u = Date.now() + S(n.expiresInSeconds) * 1e3, g = R(l), o = "waiting", x(), m = window.setInterval(() => {
+			c = r, l = i, u = Date.now() + S(n.expiresInSeconds) * 1e3, g = me(l), o = "waiting", x(), m = window.setInterval(() => {
 				o === "waiting" && (Date.now() >= u ? C() : v());
-			}, F), p = window.setInterval(() => {
+			}, de), p = window.setInterval(() => {
 				T(e);
-			}, P);
+			}, ue);
 		} catch {
 			if (e !== d || t.disposed) return;
 			o = "error", x();
@@ -874,14 +874,14 @@ function B(t) {
 	};
 }
 // src/footer.ts
-var V = 4e3;
-function H(e) {
+var I = 4e3;
+function L(e) {
 	return (/* @__PURE__ */ new Date()).toLocaleTimeString(e.zh ? "zh-CN" : "en-US", {
 		hour: "2-digit",
 		minute: "2-digit"
 	});
 }
-function U(t) {
+function R(t) {
 	let n = "qqbot-footer-title", r = e("pre", { class: "qqbot-output" });
 	r.hidden = !0;
 	let i = e("p", {
@@ -918,13 +918,13 @@ function U(t) {
 		c !== void 0 && window.clearTimeout(c), c = void 0, s = !1, m();
 	};
 	function v() {
-		o || (s ? b() : (s = !0, m(), c = window.setTimeout(_, V)));
+		o || (s ? b() : (s = !0, m(), c = window.setTimeout(_, I)));
 	}
 	async function y() {
 		if (!o) {
 			o = "save", m();
 			try {
-				await t.bridge.settings.save(), t.syncFromBridge(), i.textContent = `${t.t("footer.savedAt", { time: H(t) })}`;
+				await t.bridge.settings.save(), t.syncFromBridge(), i.textContent = `${t.t("footer.savedAt", { time: L(t) })}`;
 			} catch {
 				g(t.t("error.generic"), "bad"), i.textContent = t.t("error.generic");
 			} finally {
@@ -936,7 +936,7 @@ function U(t) {
 		if (!o) {
 			_(), o = "reset", m();
 			try {
-				await t.bridge.settings.reset(), t.syncFromBridge(), i.textContent = t.t("footer.resetDone", { time: H(t) });
+				await t.bridge.settings.reset(), t.syncFromBridge(), i.textContent = t.t("footer.resetDone", { time: L(t) });
 			} catch {
 				g(t.t("error.generic"), "bad"), i.textContent = t.t("error.generic");
 			} finally {
@@ -984,11 +984,11 @@ function U(t) {
 	};
 }
 // src/form.ts
-var W = {
+var z = {
 	group_ids: 4,
 	category_filter: 4,
 	message_template: 10
-}, ue = {
+}, he = {
 	excerpt_limit: {
 		min: 0,
 		max: 5e3,
@@ -1020,16 +1020,16 @@ var W = {
 		step: 1
 	}
 };
-function G(e) {
+function B(e) {
 	return e instanceof HTMLInputElement && e.type === "checkbox" ? e.checked ? "true" : "false" : e.value;
 }
-function K(t, n) {
+function V(t, n) {
 	return t.description ? e("p", {
 		class: "qqbot-field__desc",
 		id: n
 	}, t.description) : null;
 }
-function q(t, n) {
+function H(t, n) {
 	let r = t.item(n);
 	if (!r) return null;
 	let i = `sforum-qqbot-${n}`, a = `${i}-desc`, o = r.description ? { "aria-describedby": a } : {};
@@ -1046,8 +1046,8 @@ function q(t, n) {
 		}, e("label", {
 			class: "qqbot-check",
 			for: i
-		}, s, e("span", {}, r.label || n)), K(r, a));
-		return t.registerControl(n, s, () => G(s)), {
+		}, s, e("span", {}, r.label || n)), V(r, a));
+		return t.registerControl(n, s, () => B(s)), {
 			root: c,
 			control: s,
 			item: r
@@ -1070,7 +1070,7 @@ function q(t, n) {
 	} else if (r.type === "textarea") {
 		let a = e("textarea", {
 			id: i,
-			rows: W[n] ?? 3,
+			rows: z[n] ?? 3,
 			class: n === "message_template" ? "qqbot-input qqbot-input--mono" : "qqbot-input",
 			placeholder: r.placeholder || "",
 			spellcheck: "false",
@@ -1078,7 +1078,7 @@ function q(t, n) {
 		});
 		a.value = t.getValue(n), s = a;
 	} else if (r.type === "number") {
-		let r = ue[n], a = e("input", {
+		let r = he[n], a = e("input", {
 			type: "number",
 			id: i,
 			class: "qqbot-input",
@@ -1118,23 +1118,23 @@ function q(t, n) {
 	}, e("div", { class: "qqbot-field__head" }, e("label", {
 		class: "qqbot-field__label",
 		for: i
-	}, r.label || n), l), s, c, K(r, a));
+	}, r.label || n), l), s, c, V(r, a));
 	if (r.type === "secret") {
 		let e = s;
 		t.onSecretSavedChange(() => {
 			e.placeholder = t.secretSaved ? t.t("field.keepSecret") : t.t("field.secretPlaceholder"), l && (l.hidden = !t.secretSaved);
 		});
 	}
-	return t.registerControl(n, s, () => G(s)), {
+	return t.registerControl(n, s, () => B(s)), {
 		root: u,
 		control: s,
 		item: r
 	};
 }
-function J(t, n) {
+function U(t, n) {
 	let r = `qqbot-section-${n.id}`, i = e("div", { class: "qqbot-grid" });
 	for (let e of n.keys) {
-		let n = q(t, e);
+		let n = H(t, e);
 		n && i.append(n.root);
 	}
 	return e("section", {
@@ -1145,8 +1145,148 @@ function J(t, n) {
 		id: r
 	}, n.title), n.hint ? e("p", { class: "qqbot-card__hint" }, n.hint) : null), i);
 }
+// src/groups-card.ts
+var W = "group_ids", ge = 6, _e = {
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+	hour: "2-digit",
+	minute: "2-digit"
+};
+function G(e) {
+	return typeof e == "string" ? e : "";
+}
+function K(e) {
+	return typeof e == "number" && Number.isFinite(e) && e > 0 ? Math.floor(e) : 0;
+}
+function q(e) {
+	return e.split(",").map((e) => e.trim());
+}
+function J(e, t) {
+	return e.split("\n").some((e) => q(e).some((e) => e === t));
+}
+function ve(e, t) {
+	return `${e}${e === "" || e.endsWith("\n") ? "" : "\n"}${t}`;
+}
+function ye(e, t) {
+	let n = [];
+	for (let r of e.split("\n")) {
+		let e = q(r);
+		if (!e.some((e) => e === t)) {
+			n.push(r);
+			continue;
+		}
+		let i = e.filter((e) => e !== t && e !== "");
+		i.length > 0 && n.push(i.join(", "));
+	}
+	let r = n.join("\n");
+	return e.endsWith("\n") && r !== "" && !r.endsWith("\n") ? `${r}\n` : r;
+}
+function be(e) {
+	if (!Array.isArray(e)) return [];
+	let t = [];
+	for (let n of e) {
+		if (!n || typeof n != "object") continue;
+		let e = n, r = G(e.openid).trim();
+		if (r === "") continue;
+		let i = G(e.name).trim(), a = G(e.lastSeenAt), o = Date.parse(a);
+		t.push({
+			openid: r,
+			name: i,
+			nameUnavailable: e.nameUnavailable === !0,
+			count: K(e.count),
+			lastSeen: Number.isFinite(o) ? o : -Infinity,
+			lastSeenText: a
+		});
+	}
+	return t.sort((e, t) => t.lastSeen - e.lastSeen);
+}
+function xe(t) {
+	let n = "qqbot-groups-title", r = e("p", {
+		class: "qqbot-groups__status",
+		role: "status",
+		"aria-live": "polite"
+	}), i = e("p", { class: "qqbot-groups__note" });
+	i.hidden = !0;
+	let a = e("ul", { class: "qqbot-groups__list" });
+	a.hidden = !0;
+	let o = e("button", {
+		type: "button",
+		class: "qqbot-btn qqbot-btn--ghost qqbot-groups__refresh"
+	}, t.t("groups.refresh")), s = e("div", {
+		class: "qqbot-groups",
+		role: "group",
+		"aria-labelledby": n
+	}, e("header", { class: "qqbot-groups__head" }, e("div", { class: "qqbot-groups__heading" }, e("h4", {
+		class: "qqbot-groups__title",
+		id: n
+	}, t.t("groups.title")), e("p", { class: "qqbot-groups__hint" }, t.t("groups.hint"))), o), i, a, r), c = /* @__PURE__ */ new Map(), l = !1, u = 0, d = (e) => {
+		i.textContent = e, i.hidden = e === "";
+	}, f = (e) => {
+		r.textContent = e;
+	}, p = () => {
+		let e = t.getValue(W);
+		for (let [t, n] of c) n.checked = J(e, t);
+	}, m = (e, n) => {
+		let r = t.getValue(W);
+		t.setValue(W, n.checked ? ve(r, e) : ye(r, e)), p();
+	}, h = (e) => e.name !== "" && !e.nameUnavailable ? e.name : `${e.openid.slice(0, ge)}…`, g = (e) => {
+		let n = Date.parse(e.lastSeenText);
+		return Number.isFinite(n) ? new Date(n).toLocaleString(t.zh ? "zh-CN" : "en-US", _e) : e.lastSeenText;
+	}, _ = (n) => {
+		c.clear(), a.replaceChildren(), n.forEach((n, r) => {
+			let i = `qqbot-group-${r}`, o = e("input", {
+				type: "checkbox",
+				id: i,
+				class: "qqbot-groups__box"
+			});
+			o.checked = J(t.getValue(W), n.openid), o.addEventListener("change", () => m(n.openid, o)), c.set(n.openid, o), a.append(e("li", { class: "qqbot-groups__row" }, o, e("label", {
+				class: "qqbot-groups__label",
+				for: i
+			}, e("span", {
+				class: "qqbot-groups__name",
+				title: n.openid
+			}, h(n)), e("span", { class: "qqbot-groups__meta" }, t.t("groups.rowMeta", {
+				time: g(n),
+				count: n.count
+			})))));
+		}), a.hidden = n.length === 0;
+	}, v = (e) => {
+		let n = be(e?.groups), r = e?.claimEnabled !== !1, i = K(e?.recordingLimit);
+		_(n), r ? n.length === 0 ? d(t.t("groups.empty")) : i > 0 && n.length >= i ? d(t.t("groups.limit", { n: i })) : d("") : d(t.t("groups.claimOff")), f(t.t("groups.updated", { n: n.length }));
+	}, y = () => {
+		c.clear(), a.replaceChildren(), a.hidden = !0, d(t.t("groups.unavailable")), f(t.t("groups.unavailable"));
+	}, b = async () => {
+		if (l || t.disposed) return;
+		l = !0;
+		let e = ++u;
+		o.disabled = !0, o.textContent = t.t("groups.refreshing"), f(t.t("groups.loading"));
+		try {
+			let n = await t.bridge.request("/groups/list", {
+				method: "POST",
+				body: {},
+				responseMode: "body"
+			});
+			if (e !== u || t.disposed) return;
+			v(n);
+		} catch {
+			if (e !== u || t.disposed) return;
+			y();
+		} finally {
+			e === u && !t.disposed && (l = !1, o.disabled = !1, o.textContent = t.t("groups.refresh"));
+		}
+	};
+	return o.addEventListener("click", () => {
+		b();
+	}), t.onInput([W], p), b(), {
+		root: s,
+		destroy: () => {
+			u += 1, c.clear(), s.remove();
+		}
+	};
+}
 // src/i18n.ts
-var de = {
+var Se = {
 	"bind.title": "绑定 QQ 机器人",
 	"bind.hint": "用手机 QQ 扫码，AppID 与 AppSecret 会自动填好并保存；也可以手动填写。",
 	"bind.start": "扫码绑定",
@@ -1175,9 +1315,24 @@ var de = {
 	"group.probe.hint": "排查问题时才需要打开，平时保持关闭。",
 	"group.other": "其他设置",
 	"group.other.hint": "清单里新增的分组。",
+	"groups.title": "已识别的群",
+	"groups.hint": "机器人收到的群事件会记在这里。勾选即写入下面的群 ID 列表，取消即删掉那一行；手写的行不受影响。",
+	"groups.refresh": "刷新",
+	"groups.refreshing": "刷新中…",
+	"groups.loading": "正在读取…",
+	"groups.empty": "还没有识别到群。把机器人拉进目标群，或在群里 @ 它一次，再点刷新。",
+	"groups.claimOff": "群 ID 自动识别没有打开，插件不会记录群事件。勾选下方的「启用群 ID 自动识别」，再点刷新。",
+	"groups.unavailable": "群列表暂不可用，仍可手动填写群 ID",
+	"groups.limit": "只保留最近 {n} 个",
+	"groups.rowMeta": "最近活跃 {time} · {count} 次事件",
+	"groups.updated": "群列表已刷新，共 {n} 个",
 	"field.saved": "已保存",
 	"field.keepSecret": "已保存，留空表示不修改",
 	"field.secretPlaceholder": "填写 AppSecret",
+	"template.presets": "模板预设（点一下覆盖当前模板内容）",
+	"template.presetDefault": "默认",
+	"template.presetCompact": "精简",
+	"template.presetNotice": "公告风",
 	"template.tokens": "可用变量（点击插入到光标处）",
 	"template.tokensHint": "中文别名同样有效，例如 {{标题}}。不认识的变量会原样保留，方便你对照检查。",
 	"template.preview": "预览",
@@ -1213,7 +1368,7 @@ var de = {
 	"error.serviceDetail": "后端可能刚重启或返回了错误；稍后再试，原始错误不会显示在这里。",
 	"error.generic": "操作没有成功，请重试。",
 	"error.saveFailed": "扫码成功，但自动保存没有生效，请检查后在页面底部手动保存。"
-}, fe = {
+}, Ce = {
 	"bind.title": "Connect the QQ bot",
 	"bind.hint": "Scan with mobile QQ and AppID plus AppSecret are filled in and saved for you. You can also type them by hand.",
 	"bind.start": "Scan to connect",
@@ -1242,9 +1397,24 @@ var de = {
 	"group.probe.hint": "Turn it on only while chasing a problem.",
 	"group.other": "Other settings",
 	"group.other.hint": "A group added to the manifest.",
+	"groups.title": "Recognized groups",
+	"groups.hint": "Group events the bot received show up here. Ticking writes that group into the group ID list below, unticking removes that line; lines you typed yourself are left alone.",
+	"groups.refresh": "Refresh",
+	"groups.refreshing": "Refreshing…",
+	"groups.loading": "Reading…",
+	"groups.empty": "No group recognized yet. Add the bot to the target group, or mention it once in the group, then refresh.",
+	"groups.claimOff": "Group ID discovery is off, so no group events are recorded. Turn on \"Enable group ID discovery\" below, then refresh.",
+	"groups.unavailable": "The group list is unavailable right now; you can still type group IDs by hand",
+	"groups.limit": "Only the latest {n} are kept",
+	"groups.rowMeta": "Last seen {time} · {count} events",
+	"groups.updated": "Group list refreshed: {n} total",
 	"field.saved": "Saved",
 	"field.keepSecret": "Saved; leave blank to keep it",
 	"field.secretPlaceholder": "Enter the AppSecret",
+	"template.presets": "Presets (a click replaces the current template)",
+	"template.presetDefault": "Default",
+	"template.presetCompact": "Compact",
+	"template.presetNotice": "Announcement",
 	"template.tokens": "Variables (click to insert at the cursor)",
 	"template.tokensHint": "Chinese aliases work too, e.g. {{标题}}. Unknown variables are left untouched so you can spot typos.",
 	"template.preview": "Preview",
@@ -1281,8 +1451,8 @@ var de = {
 	"error.generic": "That did not work. Please try again.",
 	"error.saveFailed": "Scanned, but the automatic save did not take effect. Check the form and save it at the bottom of the page."
 };
-function pe(e) {
-	let t = (e || "").toLowerCase().startsWith("zh"), n = t ? de : fe;
+function we(e) {
+	let t = (e || "").toLowerCase().startsWith("zh"), n = t ? Se : Ce;
 	return {
 		zh: t,
 		t: (e, t) => {
@@ -1293,7 +1463,7 @@ function pe(e) {
 	};
 }
 // src/template.ts
-var me = [
+var Te = [
 	{
 		token: "title",
 		alias: "标题"
@@ -1330,38 +1500,77 @@ var me = [
 		token: "signature",
 		alias: "签名"
 	}
-], he = [
+], Ee = [
 	"message_template",
 	"message_format",
 	"signature",
 	"excerpt_limit",
 	"max_message_chars"
-], ge = 300;
+], De = 300, Oe = [
+	{
+		label: "template.presetDefault",
+		text: null
+	},
+	{
+		label: "template.presetCompact",
+		text: "【新帖】{{title}}\n{{url}}"
+	},
+	{
+		label: "template.presetNotice",
+		text: "【社区公告】{{title}}\n\n{{excerpt}}\n\n分类：{{category}}｜作者：{{author}}\n详情：{{url}}\n{{signature}}"
+	}
+];
 function Y(e) {
 	if (e.trim() === "") return;
 	let t = Number.parseInt(e, 10);
 	return Number.isFinite(t) ? t : void 0;
 }
-function _e(e, t) {
+function ke(e, t) {
 	let n = document.activeElement === e, r = n ? e.selectionStart ?? e.value.length : e.value.length, i = n ? e.selectionEnd ?? r : r;
 	e.value = `${e.value.slice(0, r)}${t}${e.value.slice(i)}`, e.dispatchEvent(new Event("input", { bubbles: !0 }));
 	let a = r + t.length;
 	e.focus(), e.setSelectionRange(a, a);
 }
-function ve(t, n) {
+function Ae(t, n) {
 	let r = e("div", { class: "qqbot-chips" });
-	for (let i of me) {
+	for (let i of Te) {
 		let a = `{{${i.token}}}`, o = e("button", {
 			type: "button",
 			class: "qqbot-chip",
 			title: t.zh ? `${a} / {{${i.alias}}}` : a,
 			"aria-label": t.zh ? `${a}（${i.alias}）` : a
 		}, e("code", {}, a), t.zh ? e("span", { class: "qqbot-chip__alias" }, i.alias) : null);
-		o.addEventListener("click", () => _e(n(), a)), r.append(o);
+		o.addEventListener("click", () => ke(n(), a)), r.append(o);
 	}
 	return e("div", { class: "qqbot-tokens" }, e("p", { class: "qqbot-tokens__title" }, t.t("template.tokens")), r, e("p", { class: "qqbot-tokens__hint" }, t.t("template.tokensHint")));
 }
-function ye(t) {
+function X(t, n) {
+	let r = "qqbot-presets-title", i = e("div", {
+		class: "qqbot-presets__row",
+		role: "group",
+		"aria-labelledby": r
+	}), a = [], o = () => {
+		for (let e of a) e.setAttribute("aria-pressed", "false");
+	}, s = t.item("message_template")?.default ?? "";
+	for (let r of Oe) {
+		let c = r.text ?? s;
+		if (c === "") continue;
+		let l = e("button", {
+			type: "button",
+			class: "qqbot-preset",
+			"aria-pressed": "false"
+		}, t.t(r.label));
+		l.addEventListener("click", () => {
+			let e = n();
+			e.value !== c && (e.value = c, e.dispatchEvent(new Event("input", { bubbles: !0 }))), o(), l.setAttribute("aria-pressed", "true"), e.focus(), e.setSelectionRange(c.length, c.length);
+		}), a.push(l), i.append(l);
+	}
+	return n().addEventListener("input", o), e("div", { class: "qqbot-presets" }, e("p", {
+		class: "qqbot-presets__title",
+		id: r
+	}, t.t("template.presets")), i);
+}
+function je(t) {
 	let n = "qqbot-preview-title", r = e("pre", { class: "qqbot-preview__body" }), i = e("span", { class: "qqbot-count" }), a = e("span", { class: "qqbot-badge qqbot-badge--warn" }, t.t("template.truncated"));
 	a.hidden = !0;
 	let o = e("p", { class: "qqbot-preview__unknown" });
@@ -1400,63 +1609,63 @@ function ye(t) {
 		} catch {
 			return n !== u || t.disposed || (a.hidden = !0, o.hidden = !0, r.classList.add("is-empty"), r.textContent = t.t("template.previewFailed"), i.textContent = ""), !1;
 		}
-	}, p = (e = ge) => {
+	}, p = (e = De) => {
 		l !== void 0 && window.clearTimeout(l), l = window.setTimeout(() => {
 			l = void 0, f();
 		}, e);
 	};
-	return t.onInput(he, p), p(0), {
+	return t.onInput(Ee, p), p(0), {
 		root: c,
 		stop: () => {
 			l !== void 0 && window.clearTimeout(l), l = void 0;
 		}
 	};
 }
-function be(e) {
-	let t = J(e, {
+function Me(e) {
+	let t = U(e, {
 		id: "template",
 		keys: ["message_format", "excerpt_limit"],
 		title: e.t("group.template"),
 		hint: e.t("group.template.hint")
-	}), n = t.querySelector(".qqbot-grid"), r = q(e, "message_template");
+	}), n = t.querySelector(".qqbot-grid"), r = H(e, "message_template");
 	if (n && r) {
-		let t = ve(e, () => r.control);
-		r.root.insertBefore(t, r.control), n.append(r.root);
+		let t = () => r.control;
+		r.root.insertBefore(X(e, t), r.control), r.root.insertBefore(Ae(e, t), r.control), n.append(r.root);
 	}
-	let i = ye(e);
+	let i = je(e);
 	n && n.append(i.root);
-	let a = q(e, "signature");
+	let a = H(e, "signature");
 	return n && a && n.append(a.root), {
 		root: t,
 		stop: i.stop
 	};
 }
 // src/app.ts
-var X = {
+var Z = {
 	connection: "group.connection",
 	targets: "group.targets",
 	template: "group.template",
 	limits: "group.limits",
 	probe: "group.probe"
-}, Z = {
+}, Q = {
 	connection: "group.connection.hint",
 	targets: "group.targets.hint",
 	template: "group.template.hint",
 	limits: "group.limits.hint",
 	probe: "group.probe.hint"
-}, Q = [
+}, $ = [
 	"connection",
 	"targets",
 	"template",
 	"limits",
 	"probe"
-], $ = [
+], Ne = [
 	"message_template",
 	"message_format",
 	"signature",
 	"excerpt_limit",
 	"max_message_chars"
-], xe = {
+], Pe = {
 	route: {
 		title: "error.routeTitle",
 		detail: "error.routeDetail"
@@ -1474,7 +1683,7 @@ var X = {
 		detail: "error.serviceDetail"
 	}
 };
-function Se(e) {
+function Fe(e) {
 	if (!e || typeof e != "object") return;
 	let t = e;
 	for (let e of [
@@ -1484,12 +1693,12 @@ function Se(e) {
 		t.cause?.status
 	]) if (typeof e == "number" && e >= 400 && e <= 599) return e;
 }
-function Ce(e) {
-	let t = Se(e);
+function Ie(e) {
+	let t = Fe(e);
 	return t === void 0 || t === 404 ? "route" : t === 401 || t === 403 ? "permission" : t === 429 ? "rate" : "service";
 }
-function we(t) {
-	let n = pe(t.locale), r = n.t, i = t.settings.items ?? [], a = /* @__PURE__ */ new Map(), o = {};
+function Le(t) {
+	let n = we(t.locale), r = n.t, i = t.settings.items ?? [], a = /* @__PURE__ */ new Map(), o = {};
 	for (let e of i) a.set(e.key, e), o[e.key] = typeof e.value == "string" ? e.value : e.default ?? "";
 	let s = e("strong"), c = e("span", { class: "qqbot-banner__detail" }), l = e("div", {
 		class: "qqbot-banner",
@@ -1497,7 +1706,7 @@ function we(t) {
 	}, s, c);
 	l.hidden = !0;
 	let u = (e) => {
-		let t = xe[e];
+		let t = Pe[e];
 		s.textContent = r(t.title), c.textContent = r(t.detail), l.hidden = !1;
 	}, d = /* @__PURE__ */ new Map(), f = /* @__PURE__ */ new Map(), p = /* @__PURE__ */ new Set(), m = (e) => {
 		let t = f.get(e);
@@ -1521,7 +1730,7 @@ function we(t) {
 				});
 				return l.hidden = !0, r;
 			} catch (e) {
-				throw u(Ce(e)), e;
+				throw u(Ie(e)), e;
 			}
 		},
 		toast: (e, n, r) => t.toast({
@@ -1557,7 +1766,7 @@ function we(t) {
 				if (typeof r != "string" || r === o[t]) continue;
 				o[t] = r;
 				let i = d.get(t);
-				i && h(i, r), $.includes(t) && (n = !0);
+				i && h(i, r), Ne.includes(t) && (n = !0);
 			}
 			n && m("message_template");
 		},
@@ -1568,38 +1777,42 @@ function we(t) {
 		onSecretSavedChange: (e) => {
 			p.add(e);
 		}
-	}, _ = B(g), v = be(g), y = U(g), b = /* @__PURE__ */ new Map();
+	}, _ = F(g), v = Me(g), y = xe(g), b = R(g), x = /* @__PURE__ */ new Map();
 	for (let e of i) {
-		let t = (e.groupId || "").trim() || "other", n = b.get(t);
-		n ? n.push(e) : b.set(t, [e]);
+		let t = (e.groupId || "").trim() || "other", n = x.get(t);
+		n ? n.push(e) : x.set(t, [e]);
 	}
-	let x = [...Q.filter((e) => b.has(e)), ...[...b.keys()].filter((e) => !Q.includes(e))], S = [];
-	for (let e of x) {
-		let t = b.get(e) ?? [];
+	let S = [...$.filter((e) => x.has(e)), ...[...x.keys()].filter((e) => !$.includes(e))], C = [];
+	for (let e of S) {
+		let t = x.get(e) ?? [];
 		if (e === "template") {
-			S.push(v.root);
+			C.push(v.root);
 			continue;
 		}
-		let n = e === "other" ? r("group.other") : X[e] ? r(X[e]) : e, i = e === "other" ? r("group.other.hint") : Z[e] ? r(Z[e]) : void 0;
-		S.push(J(g, {
+		let n = e === "other" ? r("group.other") : Z[e] ? r(Z[e]) : e, i = e === "other" ? r("group.other.hint") : Q[e] ? r(Q[e]) : void 0, a = U(g, {
 			id: e,
 			keys: t.map((e) => e.key),
 			title: n,
 			hint: i
-		}));
+		});
+		if (e === "targets") {
+			let e = a.querySelector("[data-key=\"group_ids\"]");
+			e?.parentElement && e.parentElement.insertBefore(y.root, e);
+		}
+		C.push(a);
 	}
-	let C = e("div", { class: "qqbot-settings" }, l, _.root, ...S, y.root);
+	let w = e("div", { class: "qqbot-settings" }, l, _.root, ...C, b.root);
 	return {
-		root: C,
+		root: w,
 		destroy: () => {
-			g.disposed = !0, _.destroy(), v.stop(), y.destroy(), C.remove();
+			g.disposed = !0, _.destroy(), v.stop(), y.destroy(), b.destroy(), w.remove();
 		}
 	};
 }
 // src/settings.ts
-var Te = 1;
-function Ee(e, t) {
-	let n = we(t);
+var Re = 1;
+function ze(e, t) {
+	let n = Le(t);
 	return e.append(n.root), () => n.destroy();
 }
-export { Te as apiVersion, Ee as mount };
+export { Re as apiVersion, ze as mount };

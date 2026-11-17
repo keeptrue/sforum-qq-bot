@@ -3,6 +3,7 @@ import { createBindCard } from './bind-card'
 import { el } from './dom'
 import { createFooter } from './footer'
 import { createSection } from './form'
+import { createGroupsCard } from './groups-card'
 import { createI18n } from './i18n'
 import type { MessageKey } from './i18n'
 import { createTemplateSection } from './template'
@@ -191,6 +192,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
   }
   const bind = createBindCard(ctx)
   const template = createTemplateSection(ctx)
+  const groups = createGroupsCard(ctx)
   const footer = createFooter(ctx)
 
   const buckets = new Map<string, SettingItem[]>()
@@ -218,7 +220,14 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
     const hint = groupId === 'other'
       ? t('group.other.hint')
       : GROUP_HINT[groupId] ? t(GROUP_HINT[groupId]) : undefined
-    sections.push(createSection(ctx, { id: groupId, keys: groupItems.map(item => item.key), title, hint }))
+    const section = createSection(ctx, { id: groupId, keys: groupItems.map(item => item.key), title, hint })
+    if (groupId === 'targets') {
+      // The card sits directly above the group ID list it writes into; it is a
+      // helper for that field, not a setting of its own.
+      const anchor = section.querySelector('[data-key="group_ids"]')
+      if (anchor?.parentElement) anchor.parentElement.insertBefore(groups.root, anchor)
+    }
+    sections.push(section)
   }
 
   const root = el('div', { class: 'qqbot-settings' }, banner, bind.root, ...sections, footer.root)
@@ -229,6 +238,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
       ctx.disposed = true
       bind.destroy()
       template.stop()
+      groups.destroy()
       footer.destroy()
       root.remove()
     }
