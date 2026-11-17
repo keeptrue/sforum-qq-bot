@@ -14,6 +14,13 @@ import (
 // testLogger 写 discard，保证测试输出干净；需要观察日志的用例自己建 buffer logger。
 func testLogger() *logger { return newLogger(io.Discard, true) }
 
+// 测试里的两个固定调用者：绑定任务属于 testActorUserID，别人（含无 actor）
+// 都取不走。取值非零是因为宿主守卫只放行 ActorID>0 的请求。
+const (
+	testActorUserID int64 = 7
+	testOtherUserID int64 = 8
+)
+
 // testConfig 是一份「凭据齐全、白名单非空」的基线配置，各用例按需覆盖字段。
 func testConfig() Config {
 	return Config{

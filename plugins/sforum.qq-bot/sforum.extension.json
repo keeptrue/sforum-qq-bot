@@ -139,7 +139,7 @@
     "name": "SForum"
   },
   "backend": {
-    "digest": "f2b92b31218cf34f95fd68e838d3cdc717b18eb63cc406158892561a9b94be49",
+    "digest": "ae47ea293d604af7e9ef5ac1e2a90b4ebd42e274d3ba5b77c55e37c3e528cab5",
     "entry": "backend/plugin",
     "hostApiVersion": "sforum.host@2",
     "protocolVersion": 2,
@@ -186,7 +186,7 @@
   "openapi": [
     {
       "contractVersion": "sforum.qq-bot.openapi.routes@1",
-      "digest": "47b313b63f52ac9487ea702ccdbaa84cf1bd8999f36f68346c6324d91539dbbe",
+      "digest": "e1bbdbbbb74b2d6acad00be0a3ca5e24f1acd4f3eae4625777a8a0f2b2c3f9ea",
       "id": "sforum.qq-bot.openapi.routes",
       "namespace": "sforum.qq-bot",
       "path": "openapi/routes.yaml"
@@ -194,7 +194,7 @@
   ],
   "packageFiles": [
     {
-      "digest": "f2b92b31218cf34f95fd68e838d3cdc717b18eb63cc406158892561a9b94be49",
+      "digest": "ae47ea293d604af7e9ef5ac1e2a90b4ebd42e274d3ba5b77c55e37c3e528cab5",
       "id": "sforum.qq-bot.file.backend",
       "kind": "executable",
       "path": "backend/plugin"
@@ -242,14 +242,14 @@
       "version": "1"
     },
     {
-      "digest": "8988d25b15d0a31e7ea5e3e6a3d7c10b303750bcb920ba5703954933e4473b9f",
+      "digest": "7e659ea3dcf416546d29b108a33e198540854c59947184b6178ba13fb0ea6893",
       "id": "sforum.qq-bot.preview.input",
       "kind": "schema",
       "path": "schemas/preview-input.json",
       "version": "1"
     },
     {
-      "digest": "7a4e7fe5ff370b3362e756080d8f5e51fc40fdde938a9e049a3f67c17317109c",
+      "digest": "7de020d617e54374b129cf1058b75f2802b7a97e73d9d92be4b2f477f526200d",
       "id": "sforum.qq-bot.preview.output",
       "kind": "schema",
       "path": "schemas/preview-output.json",
@@ -284,19 +284,33 @@
       "version": "1"
     },
     {
-      "digest": "47b313b63f52ac9487ea702ccdbaa84cf1bd8999f36f68346c6324d91539dbbe",
+      "digest": "b2f2c8f7fbb40d4400871539df49506d5b9ac9b5539241714940bc7b6330a90c",
+      "id": "sforum.qq-bot.groups.list.input",
+      "kind": "schema",
+      "path": "schemas/groups-list-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "16af807921a871d7c9147f4bc09c29fd560157952c797a054d61ba5bb0b6b8eb",
+      "id": "sforum.qq-bot.groups.list.output",
+      "kind": "schema",
+      "path": "schemas/groups-list-output.json",
+      "version": "1"
+    },
+    {
+      "digest": "e1bbdbbbb74b2d6acad00be0a3ca5e24f1acd4f3eae4625777a8a0f2b2c3f9ea",
       "id": "sforum.qq-bot.file.openapi",
       "kind": "openapi",
       "path": "openapi/routes.yaml"
     },
     {
-      "digest": "b429a28a9f6cf4a6abbfc43f4ec85c4290fc9bfa817ba9d8cb386ca1dbcb3fcd",
+      "digest": "52dd95d16c4b1adf8d8b2033fd1ea8afc6f4c02670c3fbd14f3e333f5dccc685",
       "id": "sforum.qq-bot.file.settings_entry",
       "kind": "frontend",
       "path": "frontend/admin/dist/settings.mjs"
     },
     {
-      "digest": "e2bbbbc8d8d2ee67a9e3afb30b72ebe8c61c2ce577701aa490590ccd2ef8b3fd",
+      "digest": "40335810f4cee9a89cb61afd90d63302f15d31ebf00505d9321abc993c8941c0",
       "id": "sforum.qq-bot.file.settings_style",
       "kind": "asset",
       "path": "frontend/admin/dist/settings.css"
@@ -407,10 +421,28 @@
       "requestSchema": "sforum.qq-bot.status.input@1",
       "responseSchema": "sforum.qq-bot.status.output@1",
       "timeoutMs": 15000
+    },
+    {
+      "access": "permission",
+      "action": "add",
+      "contractVersion": "sforum.qq-bot.route.groups_list@1",
+      "fallback": "closed",
+      "guard": "core.guard.permission",
+      "handler": "sforum.qq-bot.route.groups_list",
+      "id": "sforum.qq-bot.route.groups_list",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/groups/list",
+      "permission": "sforum.qq-bot.manage",
+      "requestSchema": "sforum.qq-bot.groups.list.input@1",
+      "responseSchema": "sforum.qq-bot.groups.list.output@1",
+      "timeoutMs": 15000
     }
   ],
   "sforumVersion": "\u003e=0.1.0",
   "type": "plugin",
   "url": "https://github.com/keeptrue/sforum-qq-bot",
-  "version": "0.2.0"
+  "version": "0.3.0"
 }

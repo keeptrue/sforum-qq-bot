@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.groups.list.input@1",
+  "title": "qq bot groups/list request: empty, the list is read from the group events the bot already received",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

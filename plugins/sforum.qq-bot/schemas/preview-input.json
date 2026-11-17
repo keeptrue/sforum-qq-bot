@@ -1,31 +1,64 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "sforum.qq-bot.preview.input@1",
-  "title": "qq bot template preview request: draft values, nothing persisted",
+  "title": "qq bot template preview request: which configuration to render, plus optional draft values and sample overrides",
   "type": "object",
   "properties": {
+    "source": {
+      "type": "string",
+      "enum": ["saved", "draft"],
+      "default": "saved",
+      "description": "saved (default) renders the stored settings, which is exactly what a push would send, and ignores every draft field in this request; draft renders the draft values below."
+    },
     "template": {
       "type": "string",
-      "description": "Message template to render; omitted means the plugin's default template."
+      "description": "Message template to render (draft source only); omitted means the plugin's default template."
     },
     "format": {
       "type": "string",
       "enum": ["text", "markdown"],
-      "description": "Rendering flavour; markdown escapes variable values, text does not."
+      "description": "Rendering flavour (draft source only); markdown escapes variable values, text does not."
     },
     "signature": {
       "type": "string",
-      "description": "Line appended at the end of the message and referenced as {{signature}}."
+      "description": "Line appended at the end of the message and referenced as {{signature}} (draft source only)."
     },
     "excerptLimit": {
       "type": "integer",
       "minimum": 0,
-      "description": "Characters of the sample excerpt to keep, 0 hides the excerpt."
+      "description": "Characters of the sample excerpt to keep, 0 hides the excerpt (draft source only)."
     },
     "maxMessageChars": {
       "type": "integer",
       "minimum": 0,
-      "description": "Upper bound for the rendered message, 0 applies the plugin default."
+      "description": "Upper bound for the rendered message, 0 applies the plugin default (draft source only; the saved source always uses the stored value)."
+    },
+    "sample": {
+      "type": "object",
+      "description": "Sample values to render instead of the built-in sample. Any field present overrides that field only; omitted fields keep the built-in sample value.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Sample topic title, referenced as {{title}}."
+        },
+        "author": {
+          "type": "string",
+          "description": "Sample author display name, referenced as {{author}}."
+        },
+        "category": {
+          "type": "string",
+          "description": "Sample category name, referenced as {{category}}."
+        },
+        "excerpt": {
+          "type": "string",
+          "description": "Sample excerpt before truncation; it is still cut to the effective excerptLimit."
+        },
+        "url": {
+          "type": "string",
+          "description": "Sample topic URL, referenced as {{url}}."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

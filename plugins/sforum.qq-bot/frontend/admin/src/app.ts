@@ -3,6 +3,7 @@ import { createBindCard } from './bind-card'
 import { el } from './dom'
 import { createFooter } from './footer'
 import { createSection } from './form'
+import { createGroupsCard } from './groups-card'
 import { createI18n } from './i18n'
 import type { MessageKey } from './i18n'
 import { createTemplateSection } from './template'
@@ -76,9 +77,15 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
   const itemList = (bridge.settings.items ?? []) as readonly SettingItem[]
   const items = new Map<string, SettingItem>()
   const draft: Record<string, string> = {}
+  // The saved baseline the preview compares against. Seeded from the payload
+  // the host sent (item.value is the stored value) and refreshed after
+  // save/reset — see AppContext.savedValues for why values() cannot do this.
+  const savedValues: Record<string, string> = {}
   for (const item of itemList) {
     items.set(item.key, item)
-    draft[item.key] = typeof item.value === 'string' ? item.value : (item.default ?? '')
+    const initial = typeof item.value === 'string' ? item.value : (item.default ?? '')
+    draft[item.key] = initial
+    savedValues[item.key] = initial
   }
 
   // One banner, four honest copies: "not enabled" and "you lack the permission"
@@ -99,6 +106,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
   const controls = new Map<string, FieldControl>()
   const inputListeners = new Map<string, Set<() => void>>()
   const secretListeners = new Set<() => void>()
+  const savedListeners = new Set<() => void>()
 
   const notifyInput = (key: string) => {
     const listeners = inputListeners.get(key)
@@ -120,6 +128,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
     t,
     zh: i18n.zh,
     draft,
+    savedValues,
     disposed: false,
     // secretSet is the host telling us "a secret is stored"; the value itself is
     // never sent back. The input stays empty and the draft keeps the host value.
@@ -181,8 +190,14 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
         if (control) writeControl(control, next)
         if (PREVIEW_KEYS.includes(key)) previewDirty = true
       }
+      // The baseline deliberately does NOT move here: the host swallows save
+      // failures (no rejection), so "we asked to save" says nothing about what
+      // is stored. Listeners re-ask the saved preview, whose savedSnapshot is
+      // the server's own config — that is what moves the baseline.
+      for (const listener of savedListeners) listener()
       if (previewDirty) notifyInput('message_template')
     },
+    onSavedChange: listener => { savedListeners.add(listener) },
     markSecretSaved: () => {
       ctx.secretSaved = true
       for (const listener of secretListeners) listener()
@@ -191,6 +206,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
   }
   const bind = createBindCard(ctx)
   const template = createTemplateSection(ctx)
+  const groups = createGroupsCard(ctx)
   const footer = createFooter(ctx)
 
   const buckets = new Map<string, SettingItem[]>()
@@ -218,7 +234,14 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
     const hint = groupId === 'other'
       ? t('group.other.hint')
       : GROUP_HINT[groupId] ? t(GROUP_HINT[groupId]) : undefined
-    sections.push(createSection(ctx, { id: groupId, keys: groupItems.map(item => item.key), title, hint }))
+    const section = createSection(ctx, { id: groupId, keys: groupItems.map(item => item.key), title, hint })
+    if (groupId === 'targets') {
+      // The card sits directly above the group ID list it writes into; it is a
+      // helper for that field, not a setting of its own.
+      const anchor = section.querySelector('[data-key="group_ids"]')
+      if (anchor?.parentElement) anchor.parentElement.insertBefore(groups.root, anchor)
+    }
+    sections.push(section)
   }
 
   const root = el('div', { class: 'qqbot-settings' }, banner, bind.root, ...sections, footer.root)
@@ -229,6 +252,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
       ctx.disposed = true
       bind.destroy()
       template.stop()
+      groups.destroy()
       footer.destroy()
       root.remove()
     }

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SForum QQ Bot admin routes
-  version: 0.2.0
+  version: 0.3.0
 paths:
   /bind/start:
     post:
@@ -58,7 +58,8 @@ paths:
       x-sforum-permission: sforum.qq-bot.manage
       x-sforum-request-schema: sforum.qq-bot.preview.input@1
       x-sforum-response-schema: sforum.qq-bot.preview.output@1
-      summary: Render one sample message from draft values without sending it
+      summary: Render the message a push would send (source=saved, default) or one sample message from draft values (source=draft), without sending anything
+      description: source=saved ignores every draft field and renders the stored settings through the same path as a real push, so the text is exactly what would be sent right now. source=draft renders the draft values in the request. The optional sample object replaces individual sample fields, for example to check the layout with a real title and excerpt.
       requestBody:
         required: true
         content:
@@ -67,7 +68,7 @@ paths:
               $ref: "#/components/schemas/sforum.qq-bot.preview.input@1"
       responses:
         "200":
-          description: Rendered sample
+          description: Rendered message plus the source that produced it, the character count and any unresolved placeholders. source=saved also echoes savedSnapshot, the stored settings this render used, so the settings component can rebase after a save it cannot observe; source=draft omits it.
           content:
             application/json:
               schema:
@@ -118,6 +119,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/sforum.qq-bot.status.output@1"
+  /groups/list:
+    post:
+      operationId: sforum.qq-bot.groups.list
+      x-sforum-route-id: sforum.qq-bot.route.groups_list
+      x-sforum-contract-version: sforum.qq-bot.route.groups_list@1
+      x-sforum-guard: core.guard.permission
+      x-sforum-permission: sforum.qq-bot.manage
+      x-sforum-request-schema: sforum.qq-bot.groups.list.input@1
+      x-sforum-response-schema: sforum.qq-bot.groups.list.output@1
+      summary: List the groups the bot has seen in group events, with best-effort names
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/sforum.qq-bot.groups.list.input@1"
+      responses:
+        "200":
+          description: Groups recognised so far; a missing name is reported as name null plus nameUnavailable true instead of failing the request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/sforum.qq-bot.groups.list.output@1"
 components:
   schemas:
     "sforum.qq-bot.bind.start.input@1":
@@ -140,3 +164,7 @@ components:
       $ref: "../schemas/status-input.json"
     "sforum.qq-bot.status.output@1":
       $ref: "../schemas/status-output.json"
+    "sforum.qq-bot.groups.list.input@1":
+      $ref: "../schemas/groups-list-input.json"
+    "sforum.qq-bot.groups.list.output@1":
+      $ref: "../schemas/groups-list-output.json"

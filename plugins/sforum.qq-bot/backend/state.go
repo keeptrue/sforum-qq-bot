@@ -31,12 +31,6 @@ type ClaimRecord struct {
 	Count     int
 }
 
-// Snapshot 是状态读取的只读副本。
-type Snapshot struct {
-	Deliveries []DeliveryRecord
-	Claims     []ClaimRecord
-}
-
 // State 是插件的内存投影：投递记录与群 ID 认领。只有内存，进程重启即清空。
 type State struct {
 	mu         sync.Mutex
@@ -88,25 +82,6 @@ func (s *State) RecordClaim(groupOpenID, eventType string) {
 	}
 }
 
-// Snapshot 返回脱敏副本：投递记录里的群 ID 已经是脱敏形态，认领记录这里也脱敏。
-func (s *State) Snapshot() Snapshot {
-	if s == nil {
-		return Snapshot{}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	snapshot := Snapshot{
-		Deliveries: append([]DeliveryRecord(nil), s.deliveries...),
-		Claims:     make([]ClaimRecord, 0, len(s.claims)),
-	}
-	for _, claim := range s.claims {
-		masked := claim
-		masked.GroupID = maskGroupID(claim.GroupID)
-		snapshot.Claims = append(snapshot.Claims, masked)
-	}
-	return snapshot
-}
-
 // RecentDeliveries 返回最近 limit 条投递记录（旧的在前）。
 func (s *State) RecentDeliveries(limit int) []DeliveryRecord {
 	if s == nil || limit <= 0 {
@@ -122,6 +97,10 @@ func (s *State) RecentDeliveries(limit int) []DeliveryRecord {
 }
 
 // RecentClaims 返回最近 limit 个认领到的群（完整群 ID，供管理员复制到白名单）。
+//
+// 这里**故意**不脱敏：运营者要把群 ID 复制进白名单，脱敏就等于让它不可用。
+// 插件里也没有「脱敏的状态出口」——投递记录里的群 ID 在写入时就已经是
+// maskGroupID 的形态（见 DeliveryRecord），需要原值时看这里。
 func (s *State) RecentClaims(limit int) []ClaimRecord {
 	if s == nil || limit <= 0 {
 		return nil

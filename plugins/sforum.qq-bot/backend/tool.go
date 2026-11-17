@@ -114,14 +114,16 @@ func (p *plugin) testPushHandler(ctx context.Context, call *pluginv2.AIToolCall)
 	}
 
 	config := p.cfg
-	if draft.MessageTemplate != "" {
-		config.MessageTemplate = draft.MessageTemplate
+	// test_push 保持「空串 = 沿用已保存值」：发送路径不引入「发一条空消息」这个
+	// 新失败面（M1.2 决策 D3）。只有预览按 presence-aware 渲染空串。
+	if draft.MessageTemplate != nil && *draft.MessageTemplate != "" {
+		config.MessageTemplate = *draft.MessageTemplate
 	}
 	if draft.MessageFormat != "" {
 		config.MessageFormat = normalizeFormat(draft.MessageFormat)
 	}
-	if draft.Signature != "" {
-		config.Signature = draft.Signature
+	if draft.Signature != nil && *draft.Signature != "" {
+		config.Signature = *draft.Signature
 	}
 	if draft.ExcerptLimit != nil {
 		config.ExcerptLimit = *draft.ExcerptLimit
@@ -187,21 +189,16 @@ func (p *plugin) previewHandler(_ context.Context, call *pluginv2.AIToolCall) (*
 	}
 
 	config := p.cfg
-	draftConfig := previewDraft{
-		Template:        config.MessageTemplate,
-		Format:          config.MessageFormat,
-		Signature:       config.Signature,
-		ExcerptLimit:    config.ExcerptLimit,
-		MaxMessageChars: config.MaxMessageChars,
-	}
-	if draft.MessageTemplate != "" {
-		draftConfig.Template = draft.MessageTemplate
+	draftConfig := previewDraftFromConfig(config)
+	// 与 /preview 同一约定：键在就按给的值渲染（空串渲染空），缺键才回落。
+	if draft.MessageTemplate != nil {
+		draftConfig.Template = *draft.MessageTemplate
 	}
 	if draft.MessageFormat != "" {
 		draftConfig.Format = normalizeFormat(draft.MessageFormat)
 	}
-	if draft.Signature != "" {
-		draftConfig.Signature = draft.Signature
+	if draft.Signature != nil {
+		draftConfig.Signature = *draft.Signature
 	}
 	if draft.ExcerptLimit != nil {
 		draftConfig.ExcerptLimit = *draft.ExcerptLimit
@@ -327,10 +324,13 @@ func sampleTemplateData(signature string) TemplateData {
 }
 
 // draftArguments 是设置页草稿值的冗余副本。
+//
+// MessageTemplate 与 Signature 用指针区分「没给这个键」与「给了空串」：预览里
+// 清空模板要渲染空，缺键才回落已保存配置。其余字段沿用「零值 = 没给」。
 type draftArguments struct {
-	MessageTemplate string
+	MessageTemplate *string
 	MessageFormat   string
-	Signature       string
+	Signature       *string
 	ExcerptLimit    *int
 	MaxMessageChars *int
 	GroupIDs        []string
@@ -346,9 +346,9 @@ func parseDraftArguments(raw string) (draftArguments, error) {
 	if err := json.Unmarshal([]byte(trimmed), &payload); err != nil {
 		return draft, fmt.Errorf("不是合法的 JSON 对象")
 	}
-	draft.MessageTemplate = rawString(payload, "message_template")
+	draft.MessageTemplate = rawOptionalString(payload, "message_template")
 	draft.MessageFormat = rawString(payload, "message_format")
-	draft.Signature = rawString(payload, "signature")
+	draft.Signature = rawOptionalString(payload, "signature")
 	draft.ExcerptLimit = rawInt(payload, "excerpt_limit")
 	draft.MaxMessageChars = rawInt(payload, "max_message_chars")
 	draft.GroupIDs = splitSettingList(rawString(payload, "group_ids"))
@@ -365,6 +365,21 @@ func rawString(payload map[string]json.RawMessage, key string) string {
 		return ""
 	}
 	return strings.TrimSpace(value)
+}
+
+// rawOptionalString 读一个字符串字段，并保留「键在但为空」这个事实——预览要按
+// 空串渲染而不是回落。键不存在、值是 null、或不是字符串都返回 nil（= 没给）。
+func rawOptionalString(payload map[string]json.RawMessage, key string) *string {
+	raw, ok := payload[key]
+	if !ok {
+		return nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(value)
+	return &trimmed
 }
 
 func rawInt(payload map[string]json.RawMessage, key string) *int {

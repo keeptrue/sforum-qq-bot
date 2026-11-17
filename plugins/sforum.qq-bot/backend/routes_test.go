@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	pluginv2 "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2"
 	pluginwire "github.com/keeptrue/sforum/apps/api/sdk/plugin/v2/gen/sforum/plugin/v2"
@@ -35,6 +36,7 @@ func newRouteTestPlugin(t *testing.T, config Config, sender Sender) *plugin {
 		sender:     sender,
 		bind:       newBindClient(log),
 		bindStore:  NewBindStore(time.Now),
+		groupNames: newGroupNameCache(time.Now),
 	}
 	instance.Server = pluginv2.NewServer()
 	return instance
@@ -53,6 +55,19 @@ func newRouteRequest(t *testing.T, routeID string, body map[string]any) *pluginw
 			t.Fatalf("构造请求体失败：%v", err)
 		}
 		request.Body = document
+	}
+	return request
+}
+
+// newRouteRequestAs 在 newRouteRequest 上补一个调用者，其余完全一致。
+//
+// userID<=0 表示「不带 actor」：宿主守卫链路上不会出现这种请求（它要求
+// ActorID>0），只有测试需要构造它来钉住兜底行为。
+func newRouteRequestAs(t *testing.T, routeID string, body map[string]any, userID int64) *pluginwire.RouteRequest {
+	t.Helper()
+	request := newRouteRequest(t, routeID, body)
+	if userID > 0 {
+		request.Context.Actor = &protocolwire.Actor{UserId: userID}
 	}
 	return request
 }
@@ -152,7 +167,7 @@ func TestRouteBindStart(t *testing.T) {
 	instance.bind.baseURL = server.URL
 	instance.bind.connectBaseURL = "https://q.qq.com"
 
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("建任务失败：%v", err)
 	}
@@ -191,7 +206,7 @@ func TestRouteBindStartRefundsQuotaOnUpstreamFailure(t *testing.T) {
 	instance.bind.baseURL = server.URL
 
 	for attempt := 0; attempt < bindStartPerMinute; attempt++ {
-		response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+		response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 		if err != nil {
 			t.Fatalf("第 %d 次建任务失败：%v", attempt+1, err)
 		}
@@ -201,7 +216,7 @@ func TestRouteBindStartRefundsQuotaOnUpstreamFailure(t *testing.T) {
 	}
 
 	failing.Store(false)
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("回滚配额后建任务失败：%v", err)
 	}
@@ -225,7 +240,7 @@ func TestRouteBindStartRateLimited(t *testing.T) {
 	instance.bind.baseURL = server.URL
 
 	for attempt := 0; attempt < bindStartPerMinute; attempt++ {
-		response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+		response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 		if err != nil {
 			t.Fatalf("第 %d 次建任务失败：%v", attempt+1, err)
 		}
@@ -233,7 +248,7 @@ func TestRouteBindStartRateLimited(t *testing.T) {
 			t.Fatalf("第 %d 次不该被拒：%+v", attempt+1, response.GetError())
 		}
 	}
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("限流不该返回 error：%v", err)
 	}
@@ -252,7 +267,7 @@ func TestRouteBindStartRateLimited(t *testing.T) {
 func TestRouteBindPollRejections(t *testing.T) {
 	instance := newRouteTestPlugin(t, testConfig(), nil)
 
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, nil))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("缺参数不该返回 error：%v", err)
 	}
@@ -263,7 +278,7 @@ func TestRouteBindPollRejections(t *testing.T) {
 		t.Fatalf("错误码期望 INVALID_ARGUMENT，得到 %+v", detail)
 	}
 
-	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "missing"}))
+	response, err = instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "missing"}, testActorUserID))
 	if err != nil {
 		t.Fatalf("未知任务不该返回 error：%v", err)
 	}
@@ -283,7 +298,7 @@ func TestRouteBindPollDeliversSecretOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("生成密钥失败：%v", err)
 	}
-	instance.bindStore.Put("task-once", key)
+	instance.bindStore.Put("task-once", key, testActorUserID)
 
 	var sealed string
 	sealed = sealBindSecret(t, key, "app-secret-once")
@@ -306,7 +321,7 @@ func TestRouteBindPollDeliversSecretOnce(t *testing.T) {
 	defer server.Close()
 	instance.bind.baseURL = server.URL
 
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "task-once"}))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-once"}, testActorUserID))
 	if err != nil {
 		t.Fatalf("轮询失败：%v", err)
 	}
@@ -321,7 +336,7 @@ func TestRouteBindPollDeliversSecretOnce(t *testing.T) {
 		t.Fatalf("凭据交付后任务应被取走，实际还剩 %d 条", instance.bindStore.Len())
 	}
 
-	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "task-once"}))
+	response, err = instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-once"}, testActorUserID))
 	if err != nil {
 		t.Fatalf("二次轮询失败：%v", err)
 	}
@@ -334,14 +349,14 @@ func TestRouteBindPollDeliversSecretOnce(t *testing.T) {
 // bind_poll：上游失败要落到可读原因，而不是空响应。
 func TestRouteBindPollUpstreamFailure(t *testing.T) {
 	instance := newRouteTestPlugin(t, testConfig(), nil)
-	instance.bindStore.Put("task-1", "key-1")
+	instance.bindStore.Put("task-1", "key-1", testActorUserID)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writeBindJSON(t, writer, map[string]any{"retcode": 20001, "msg": "server busy"})
 	}))
 	defer server.Close()
 	instance.bind.baseURL = server.URL
 
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "task-1"}))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-1"}, testActorUserID))
 	if err != nil {
 		t.Fatalf("上游失败不该返回 error：%v", err)
 	}
@@ -365,7 +380,7 @@ func TestRouteBindPollConcurrentDeliveryIsExclusive(t *testing.T) {
 		t.Fatalf("生成密钥失败：%v", err)
 	}
 	sealed := sealBindSecret(t, key, "only-once")
-	instance.bindStore.Put("task-race", key)
+	instance.bindStore.Put("task-race", key, testActorUserID)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writeBindJSON(t, writer, map[string]any{
 			"retcode": 0, "msg": "", "data": map[string]any{
@@ -388,7 +403,7 @@ func TestRouteBindPollConcurrentDeliveryIsExclusive(t *testing.T) {
 		go func() {
 			defer waitGroup.Done()
 			response, invokeErr := instance.InvokeRoute(context.Background(),
-				newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "task-race"}))
+				newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-race"}, testActorUserID))
 			if invokeErr != nil {
 				results <- outcome{status: "error:" + invokeErr.Error()}
 				return
@@ -419,12 +434,148 @@ func TestRouteBindPollConcurrentDeliveryIsExclusive(t *testing.T) {
 	}
 }
 
+// bind_start：拿不到调用者就不建任务——凭据必须知道交给谁。
+func TestRouteBindStartRejectsMissingActor(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		writeBindJSON(t, writer, map[string]any{
+			"retcode": 0, "msg": "", "data": map[string]any{"task_id": "task-anon"},
+		})
+	}))
+	defer server.Close()
+	instance.bind.baseURL = server.URL
+
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindStartID, nil, 0))
+	if err != nil {
+		t.Fatalf("缺 actor 不该返回 error：%v", err)
+	}
+	if response.GetStatusCode() != http.StatusForbidden {
+		t.Fatalf("状态码期望 403，得到 %d", response.GetStatusCode())
+	}
+	detail := response.GetError()
+	if detail == nil || detail.GetCode() != protocolwire.ErrorCode_ERROR_CODE_PERMISSION_DENIED {
+		t.Fatalf("错误码期望 PERMISSION_DENIED，得到 %+v", detail)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("缺 actor 不该打上游，实际 %d 次", hits.Load())
+	}
+	if instance.bindStore.Len() != 0 {
+		t.Fatalf("缺 actor 不该留下任务，实际 %d 条", instance.bindStore.Len())
+	}
+}
+
+// bind_poll：任务绑定发起者——别人拿到 taskId 也拿不到凭据，发起者仍能交付。
+func TestRouteBindPollRejectsOtherOwner(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	var sealed atomic.Value
+	sealed.Store("")
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case createBindTaskPath:
+			writeBindJSON(t, writer, map[string]any{
+				"retcode": 0, "msg": "", "data": map[string]any{"task_id": "task-owner"},
+			})
+		case pollBindResultPath:
+			writeBindJSON(t, writer, map[string]any{
+				"retcode": 0, "msg": "", "data": map[string]any{
+					"status": bindRemoteCompleted, "bot_appid": "102030405",
+					"bot_encrypt_secret": sealed.Load(),
+				},
+			})
+		default:
+			t.Errorf("未预期路径：%s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+	instance.bind.baseURL = server.URL
+
+	// 发起者出码：任务表里必须记下发起者，否则下面的校验无从谈起。
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
+	if err != nil {
+		t.Fatalf("建任务失败：%v", err)
+	}
+	routeDocumentValues(t, response, bindStartOutputSchema)
+	key, ok := instance.bindStore.Key("task-owner", testActorUserID)
+	if !ok {
+		t.Fatal("发起者应能读到自己的任务密钥")
+	}
+	sealed.Store(sealBindSecret(t, key, "owner-only-secret"))
+
+	// 非发起者用同一个 taskId 轮询：只看到 expired，任务原封不动。
+	response, err = instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-owner"}, testOtherUserID))
+	if err != nil {
+		t.Fatalf("非发起者轮询不该返回 error：%v", err)
+	}
+	values := routeDocumentValues(t, response, bindPollOutputSchema)
+	if values["status"] != bindStatusExpired {
+		t.Fatalf("非发起者应回报 expired，得到 %v", values["status"])
+	}
+	if values["appId"] != "" || values["appSecret"] != "" {
+		t.Fatalf("非发起者不该拿到凭据：%v / %v", values["appId"], values["appSecret"])
+	}
+	if instance.bindStore.Len() != 1 {
+		t.Fatalf("非发起者不该把任务取走，实际剩 %d 条", instance.bindStore.Len())
+	}
+
+	// 发起者自己轮询：凭据交付，任务被取走。
+	response, err = instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-owner"}, testActorUserID))
+	if err != nil {
+		t.Fatalf("发起者轮询失败：%v", err)
+	}
+	values = routeDocumentValues(t, response, bindPollOutputSchema)
+	if values["status"] != bindStatusScanned {
+		t.Fatalf("发起者应拿到 scanned，得到 %v", values["status"])
+	}
+	if values["appId"] != "102030405" || values["appSecret"] != "owner-only-secret" {
+		t.Fatalf("凭据不对：%v / %v", values["appId"], values["appSecret"])
+	}
+	if instance.bindStore.Len() != 0 {
+		t.Fatalf("凭据交付后任务应被取走，实际还剩 %d 条", instance.bindStore.Len())
+	}
+}
+
+// bind_poll：请求不带 actor 时回报 expired（200），既不交付凭据也不吃掉任务。
+func TestRouteBindPollRejectsMissingActor(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	key, err := bindRandomKey(nil)
+	if err != nil {
+		t.Fatalf("生成密钥失败：%v", err)
+	}
+	instance.bindStore.Put("task-anon", key, testActorUserID)
+
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-anon"}, 0))
+	if err != nil {
+		t.Fatalf("缺 actor 的轮询不该返回 error：%v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("缺 actor 应回报 200 + expired，得到 %d", response.GetStatusCode())
+	}
+	values := routeDocumentValues(t, response, bindPollOutputSchema)
+	if values["status"] != bindStatusExpired {
+		t.Fatalf("缺 actor 应回报 expired，得到 %v", values["status"])
+	}
+	if values["appId"] != "" || values["appSecret"] != "" {
+		t.Fatalf("缺 actor 不该拿到凭据：%v / %v", values["appId"], values["appSecret"])
+	}
+	if _, ok := instance.bindStore.Key("task-anon", testActorUserID); !ok {
+		t.Fatal("缺 actor 的轮询不该把任务取走")
+	}
+}
+
 // preview：只渲染，不发送；截断与未知变量都要报出来。
 func TestRoutePreview(t *testing.T) {
 	sender := &fakeSender{}
 	instance := newRouteTestPlugin(t, testConfig(), sender)
 
 	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":   previewSourceDraft,
 		"template": "[{{title}}]{{txet}}",
 		"format":   "text",
 	}))
@@ -446,6 +597,7 @@ func TestRoutePreview(t *testing.T) {
 
 	// 单独一段：把总长度压到 8 字，必须报 truncated。
 	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":          previewSourceDraft,
 		"template":        "0123456789abcdef",
 		"maxMessageChars": 8,
 	}))
@@ -488,7 +640,7 @@ func TestRoutePreviewExcerptLimit(t *testing.T) {
 	sample := sampleTemplateData("sig").Excerpt
 
 	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
-		"template": "摘要：{{excerpt}}", "excerptLimit": 4,
+		"source": previewSourceDraft, "template": "摘要：{{excerpt}}", "excerptLimit": 4,
 	}))
 	if err != nil {
 		t.Fatalf("预览失败：%v", err)
@@ -499,7 +651,7 @@ func TestRoutePreviewExcerptLimit(t *testing.T) {
 	}
 
 	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
-		"template": "摘要：{{excerpt}}", "excerptLimit": 0,
+		"source": previewSourceDraft, "template": "摘要：{{excerpt}}", "excerptLimit": 0,
 	}))
 	if err != nil {
 		t.Fatalf("预览失败：%v", err)
@@ -517,7 +669,7 @@ func TestRoutePreviewMaxCharsZeroUsesDefault(t *testing.T) {
 	instance := newRouteTestPlugin(t, config, nil)
 
 	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
-		"template": "0123456789abcdefghij", "maxMessageChars": 0,
+		"source": previewSourceDraft, "template": "0123456789abcdefghij", "maxMessageChars": 0,
 	}))
 	if err != nil {
 		t.Fatalf("预览失败：%v", err)
@@ -528,6 +680,293 @@ func TestRoutePreviewMaxCharsZeroUsesDefault(t *testing.T) {
 	}
 	if text, _ := values["text"].(string); text != "0123456789abcdef…" {
 		t.Fatalf("截断结果不对：%q", text)
+	}
+}
+
+// preview：键在但是空串 → 真的渲染空，不再回落到已保存模板。
+func TestRoutePreviewEmptyTemplateRendersEmpty(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequest(t, routePreviewID, map[string]any{"source": previewSourceDraft, "template": ""}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	if text, _ := values["text"].(string); text != "" {
+		t.Fatalf("空模板应渲染空串，得到 %q", text)
+	}
+	unknown, ok := values["unknownVariables"].([]any)
+	if !ok || len(unknown) != 0 {
+		t.Fatalf("空模板不该报未知变量：%v", values["unknownVariables"])
+	}
+	if values["truncated"] != false {
+		t.Fatalf("空串不该标记 truncated：%v", values["truncated"])
+	}
+}
+
+// preview：空模板与「maxMessageChars=0 沿用默认上限」两条约定必须共存。
+func TestRoutePreviewEmptyTemplateKeepsMaxCharsConvention(t *testing.T) {
+	config := testConfig()
+	config.MaxMessageChars = 16
+	instance := newRouteTestPlugin(t, config, nil)
+
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequest(t, routePreviewID, map[string]any{"source": previewSourceDraft, "template": "", "maxMessageChars": 0}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	if text, _ := values["text"].(string); text != "" {
+		t.Fatalf("空模板应渲染空串，得到 %q", text)
+	}
+	if values["truncated"] != false {
+		t.Fatalf("空串没有可截断的内容，truncated 应为 false：%v", values["truncated"])
+	}
+}
+
+// preview：清空签名同样按空串渲染，而不是回落到已保存签名。
+func TestRoutePreviewEmptySignatureRendersEmpty(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequest(t, routePreviewID, map[string]any{
+			"source": previewSourceDraft, "template": "{{title}}|{{signature}}", "signature": "",
+		}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	text, _ := routeDocumentValues(t, response, previewOutputSchema)["text"].(string)
+	expected := sampleTemplateData("").Title + "|"
+	if text != expected {
+		t.Fatalf("空签名应渲染成空，得到 %q（期望 %q）", text, expected)
+	}
+	if strings.Contains(text, defaultSignature) {
+		t.Fatalf("不该回落到已保存签名：%q", text)
+	}
+}
+
+// preview：source=saved 忽略请求里的全部草稿字段，输出就是已保存配置的渲染。
+func TestRoutePreviewSavedSourceIgnoresDraft(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	body := map[string]any{
+		"source":          previewSourceSaved,
+		"template":        "草稿模板 {{title}}",
+		"format":          "markdown",
+		"signature":       "草稿签名",
+		"excerptLimit":    3,
+		"maxMessageChars": 8,
+	}
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, body))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	want := "【新主题】" + sampleTemplateData("").Title
+	if text, _ := values["text"].(string); text != want {
+		t.Fatalf("saved 源应忽略草稿字段，得到 %q（期望 %q）", text, want)
+	}
+	if values["source"] != previewSourceSaved {
+		t.Fatalf("source 应回显 saved：%v", values["source"])
+	}
+	if values["truncated"] != false {
+		t.Fatalf("草稿里的 maxMessageChars=8 不该生效：%v", values["truncated"])
+	}
+	if characters, ok := values["characters"].(float64); !ok || int(characters) != utf8.RuneCountInString(want) {
+		t.Fatalf("characters 应为 %d，得到 %v", utf8.RuneCountInString(want), values["characters"])
+	}
+	if unknown, _ := values["unknownVariables"].([]any); len(unknown) != 0 {
+		t.Fatalf("已保存模板没有未知变量：%v", values["unknownVariables"])
+	}
+
+	// 不传 source 时默认就是 saved：同一份 body 去掉 source 必须得到同样的字。
+	delete(body, "source")
+	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, body))
+	if err != nil {
+		t.Fatalf("默认源预览失败：%v", err)
+	}
+	values = routeDocumentValues(t, response, previewOutputSchema)
+	if text, _ := values["text"].(string); text != want {
+		t.Fatalf("source 缺省应等于 saved，得到 %q", text)
+	}
+	if values["source"] != previewSourceSaved {
+		t.Fatalf("缺省时 source 应回显 saved：%v", values["source"])
+	}
+}
+
+// preview：source=draft 仍然按请求里的草稿值渲染（缺键回落、未知变量原样保留）。
+func TestRoutePreviewDraftSourceStillAppliesDraft(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":          previewSourceDraft,
+		"template":        "【{{title}}】{{signature}}{{txet}}",
+		"signature":       "草稿签名",
+		"maxMessageChars": 0,
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	want := "【" + sampleTemplateData("").Title + "】草稿签名{{txet}}"
+	if text, _ := values["text"].(string); text != want {
+		t.Fatalf("draft 源应使用草稿值，得到 %q（期望 %q）", text, want)
+	}
+	if values["source"] != previewSourceDraft {
+		t.Fatalf("source 应回显 draft：%v", values["source"])
+	}
+	unknown, _ := values["unknownVariables"].([]any)
+	if len(unknown) != 1 || unknown[0] != "txet" {
+		t.Fatalf("未知变量应原样保留并报出来：%v", values["unknownVariables"])
+	}
+	if values["truncated"] != false {
+		t.Fatalf("maxMessageChars=0 应沿用默认上限，不该截断：%v", values["truncated"])
+	}
+}
+
+// preview：sample 覆盖只替换给过的字段，摘要仍按生效的 excerptLimit 截断。
+func TestRoutePreviewSampleOverride(t *testing.T) {
+	config := testConfig()
+	config.MessageTemplate = "{{title}}|{{author}}|{{excerpt}}"
+	instance := newRouteTestPlugin(t, config, nil)
+
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source": previewSourceSaved,
+		"sample": map[string]any{"title": "真实标题", "excerpt": "真实摘要"},
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	want := "真实标题|示例作者|" + BuildExcerpt("真实摘要", config.ExcerptLimit)
+	if text, _ := values["text"].(string); text != want {
+		t.Fatalf("样例覆盖没生效，得到 %q（期望 %q）", text, want)
+	}
+	if values["sampleUsed"] != true {
+		t.Fatalf("给了 sample 时 sampleUsed 应为 true：%v", values["sampleUsed"])
+	}
+
+	// 不给 sample：仍用内置样例，sampleUsed 为 false。
+	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source": previewSourceSaved,
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values = routeDocumentValues(t, response, previewOutputSchema)
+	if values["sampleUsed"] != false {
+		t.Fatalf("没给 sample 时 sampleUsed 应为 false：%v", values["sampleUsed"])
+	}
+	if text, _ := values["text"].(string); !strings.Contains(text, sampleTemplateData("").Title) {
+		t.Fatalf("没给 sample 时应使用内置样例：%q", text)
+	}
+}
+
+// preview：saved 源与 hook.go 的推送逐字相同——这才是「真预览」的定义。
+//
+// 做法：用同一份已保存配置跑一次真推送（InvokeHook → dispatcher 队列），再调
+// /preview source=saved，比对两边的正文。样例数据的每个字段都由推送载荷提供，
+// 所以两条路径喂给 Render 的是同一份 TemplateData。
+func TestRoutePreviewSavedSourceMatchesPushPath(t *testing.T) {
+	config := testConfig()
+	config.MessageTemplate = "【{{title}}】{{author}}/{{category}}\n摘要：{{excerpt}}\n链接：{{url}}\n—— {{signature}}"
+	config.ExcerptLimit = 12
+	instance, identity := newTestHook(t, config, nil, nil)
+
+	sample := sampleTemplateData(config.Signature)
+	payload := map[string]any{
+		"topicId": sample.TopicID,
+		"topic": map[string]any{
+			"id": sample.TopicID, "title": sample.Title, "url": sample.URL, "excerpt": sample.Excerpt,
+		},
+		"author":   map[string]any{"displayName": sample.Author},
+		"category": map[string]any{"name": sample.Category},
+	}
+	if _, err := instance.InvokeHook(context.Background(),
+		newHookRequest(identity, payload, "delivery-preview-parity")); err != nil {
+		t.Fatalf("推送路径失败：%v", err)
+	}
+	var pushed DeliveryJob
+	select {
+	case pushed = <-instance.dispatcher.queue:
+	default:
+		t.Fatal("推送路径没有入队任何投递")
+	}
+	if pushed.Content == "" {
+		t.Fatal("推送路径渲染出了空正文")
+	}
+
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequest(t, routePreviewID, map[string]any{"source": previewSourceSaved}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	text, _ := values["text"].(string)
+	if text != pushed.Content {
+		t.Fatalf("saved 预览必须与推送逐字相同：\n预览 %q\n推送 %q", text, pushed.Content)
+	}
+	if characters, ok := values["characters"].(float64); !ok || int(characters) != utf8.RuneCountInString(pushed.Content) {
+		t.Fatalf("characters 与正文不一致：%v vs %q", values["characters"], pushed.Content)
+	}
+}
+
+// preview：source=saved 回显的 savedSnapshot 是已保存配置，不是请求里的草稿值。
+func TestRoutePreviewSavedSnapshotEchoesSavedConfig(t *testing.T) {
+	config := testConfig()
+	config.MessageTemplate = "【已保存】{{title}}"
+	config.MessageFormat = messageFormatMarkdown
+	config.Signature = "已保存签名"
+	config.ExcerptLimit = 7
+	config.MaxMessageChars = 123
+	instance := newRouteTestPlugin(t, config, nil)
+
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":          previewSourceSaved,
+		"template":        "草稿模板 {{title}}",
+		"format":          "text",
+		"signature":       "草稿签名",
+		"excerptLimit":    3,
+		"maxMessageChars": 9,
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	snapshot, ok := values["savedSnapshot"].(map[string]any)
+	if !ok {
+		t.Fatalf("saved 源应回显 savedSnapshot：%T %v", values["savedSnapshot"], values["savedSnapshot"])
+	}
+	if snapshot["message_template"] != config.MessageTemplate {
+		t.Fatalf("message_template 应取已保存值，得到 %v", snapshot["message_template"])
+	}
+	if snapshot["message_format"] != config.MessageFormat {
+		t.Fatalf("message_format 应取已保存值，得到 %v", snapshot["message_format"])
+	}
+	if snapshot["signature"] != config.Signature {
+		t.Fatalf("signature 应取已保存值，得到 %v", snapshot["signature"])
+	}
+	if limit, ok := snapshot["excerpt_limit"].(float64); !ok || int(limit) != config.ExcerptLimit {
+		t.Fatalf("excerpt_limit 应为 %d，得到 %v", config.ExcerptLimit, snapshot["excerpt_limit"])
+	}
+	if limit, ok := snapshot["max_message_chars"].(float64); !ok || int(limit) != config.MaxMessageChars {
+		t.Fatalf("max_message_chars 应为 %d，得到 %v", config.MaxMessageChars, snapshot["max_message_chars"])
+	}
+	if len(snapshot) != 5 {
+		t.Fatalf("savedSnapshot 只该有五个键，实际 %v", snapshot)
+	}
+}
+
+// preview：source=draft 不带 savedSnapshot，避免组件把草稿当成保存基线。
+func TestRoutePreviewDraftOmitsSavedSnapshot(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":   previewSourceDraft,
+		"template": "草稿 {{title}}",
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	if snapshot, present := values["savedSnapshot"]; present {
+		t.Fatalf("draft 源不该带 savedSnapshot：%v", snapshot)
 	}
 }
 
@@ -653,7 +1092,7 @@ func TestRouteResponsesAreJSON(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, testCase.routeID, testCase.body))
+			response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, testCase.routeID, testCase.body, testActorUserID))
 			if err != nil {
 				t.Fatalf("调用 %s 失败：%v", testCase.name, err)
 			}
@@ -681,7 +1120,7 @@ func TestRouteErrorResponsesAreJSON(t *testing.T) {
 		t.Fatalf("未知路由状态码期望 404，得到 %d", unknown.GetStatusCode())
 	}
 
-	missingTask, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, nil))
+	missingTask, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("缺参数不该返回 error：%v", err)
 	}
@@ -695,7 +1134,7 @@ func TestRouteErrorResponsesAreJSON(t *testing.T) {
 	}))
 	defer failingServer.Close()
 	instance.bind.baseURL = failingServer.URL
-	upstream, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+	upstream, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("上游失败不该返回 error：%v", err)
 	}
@@ -712,7 +1151,7 @@ func TestRouteBindUnavailable(t *testing.T) {
 	instance.bindStore = nil
 
 	for _, routeID := range []string{routeBindStartID, routeBindPollID} {
-		response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeID, map[string]any{"taskId": "x"}))
+		response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeID, map[string]any{"taskId": "x"}, testActorUserID))
 		if err != nil {
 			t.Fatalf("%s 不该返回 error：%v", routeID, err)
 		}

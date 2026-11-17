@@ -92,6 +92,58 @@ func TestPreviewToolBadArguments(t *testing.T) {
 	}
 }
 
+// 空模板按空串渲染：正文为空，且不带「未知变量」「已按 N 字截断」后缀。
+func TestPreviewToolEmptyTemplateRendersEmpty(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	result, err := instance.previewHandler(context.Background(), &pluginv2.AIToolCall{
+		Arguments: `{"message_template":""}`,
+	})
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	if result.IsError {
+		t.Fatalf("空模板是编辑中间态，不该标 IsError：%s", result.Content)
+	}
+	if result.Content != "" {
+		t.Fatalf("空模板应渲染空串，得到 %q", result.Content)
+	}
+}
+
+// 缺键才回落：参数里没有 message_template 时仍用已保存模板渲染样例。
+func TestPreviewToolFallsBackWhenTemplateAbsent(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	result, err := instance.previewHandler(context.Background(), &pluginv2.AIToolCall{Arguments: `{}`})
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	if result.IsError {
+		t.Fatalf("回落不该标 IsError：%s", result.Content)
+	}
+	if !strings.Contains(result.Content, sampleTemplateData("").Title) {
+		t.Fatalf("缺键应回落已保存模板并渲染样例标题：%s", result.Content)
+	}
+	if !strings.Contains(result.Content, "【新主题】") {
+		t.Fatalf("回落的应是已保存模板：%s", result.Content)
+	}
+}
+
+// 清空签名同样按空串渲染，而不是回落到已保存签名。
+func TestPreviewToolEmptySignatureRendersEmpty(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	result, err := instance.previewHandler(context.Background(), &pluginv2.AIToolCall{
+		Arguments: `{"message_template":"{{signature}}","signature":""}`,
+	})
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	if result.IsError {
+		t.Fatalf("空签名不该标 IsError：%s", result.Content)
+	}
+	if result.Content != "" {
+		t.Fatalf("空签名应渲染空串，得到 %q", result.Content)
+	}
+}
+
 // 摘要上限 0 表示不显示摘要，与真实推送语义一致。
 func TestPreviewToolExcerptLimitZero(t *testing.T) {
 	instance := newRouteTestPlugin(t, testConfig(), nil)

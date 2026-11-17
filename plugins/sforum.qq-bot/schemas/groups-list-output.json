@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.groups.list.output@1",
+  "title": "qq bot groups/list response: groups recognised from the bot's own group events, with best-effort names",
+  "type": "object",
+  "required": ["groups", "claimEnabled", "recordingLimit"],
+  "properties": {
+    "groups": {
+      "type": "array",
+      "description": "Groups the bot has seen in group events, oldest first. There is no platform API that lists a bot's groups, so this list is the only source; a group appears only after the bot received an event there.",
+      "items": {
+        "type": "object",
+        "required": ["openid", "name", "nameUnavailable", "eventType", "firstSeenAt", "lastSeenAt", "count"],
+        "properties": {
+          "openid": {
+            "type": "string",
+            "description": "group_openid, usable directly in the group whitelist setting."
+          },
+          "name": {
+            "type": ["string", "null"],
+            "description": "Group name when the platform returned one; null when it could not be read. Reading it needs a whitelisted bot, so a normal app always gets null here."
+          },
+          "nameUnavailable": {
+            "type": "boolean",
+            "description": "true when name is null. A name can be missing because the app is not whitelisted, because the lookup budget for this request ran out, or because the platform call failed."
+          },
+          "eventType": {
+            "type": "string",
+            "description": "Type of the most recent group event seen in this group."
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 timestamp of the first event seen in this group."
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 timestamp of the most recent event seen in this group."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many group events the plugin has counted for this group."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "claimEnabled": {
+      "type": "boolean",
+      "description": "Whether group id discovery is enabled in the stored settings. When false, no new group is recorded and this list stops growing."
+    },
+    "recordingLimit": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many groups the plugin keeps in memory (ring capacity); older ones are dropped, so this is the upper bound of the list."
+    }
+  },
+  "additionalProperties": false
+}

@@ -89,7 +89,9 @@ func (p *plugin) InvokeHook(ctx context.Context, request *pluginwire.HookRequest
 	}
 	excerpt = BuildExcerpt(excerpt, p.cfg.ExcerptLimit)
 
-	rendered := Render(p.cfg.MessageTemplate, TemplateData{
+	// 与 source=saved 的预览共用同一入口：模板、消息形态、长度上限与 Warnf 全部
+	// 取已保存配置，预览才可能是「真正会发出去的那段字」。
+	rendered := p.renderSaved(TemplateData{
 		Title:     event.Title,
 		Author:    event.AuthorName,
 		Category:  event.CategoryName,
@@ -98,8 +100,6 @@ func (p *plugin) InvokeHook(ctx context.Context, request *pluginwire.HookRequest
 		URL:       event.URL,
 		TopicID:   event.TopicID,
 		Signature: p.cfg.Signature,
-	}, RenderOptions{
-		Format: p.cfg.MessageFormat, MaxChars: p.cfg.MaxMessageChars, Warnf: p.log.Warnf,
 	})
 	if strings.TrimSpace(rendered.Text) == "" {
 		p.log.Warnf("qq-bot: 渲染结果为空，跳过本次投递（模板可能只含未知变量）")
