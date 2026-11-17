@@ -86,6 +86,12 @@
 4. **Go 的 RE2 不支持 `\uXXXX` 转义**，必须写 `\x{...}`。写错的后果是
    `regexp.MustCompile` 在包初始化时 panic，插件连 go-plugin 握手都进不去。
 5. **宿主 `DigestTree` 禁止符号链接**：不要用软链把包目录挂到别处。
+6. **`admin.pages[].group` 留空才会平铺进「扩展管理」**。声明 group 会让宿主把该页收进一个独立的
+   可展开一级菜单（`apps/web/app/layouts/admin.vue:235` 把它插在「扩展管理」之后，`:408` 的
+   `buildExtensionNavigationItems` 只平铺没分组的页签）；空值走旧行为，侧栏 = 扩展管理 → 该页，
+   且**仅专业模式可见**（`admin.vue:351`）。所以 group 只在「有 Core sectionId 可并入」或
+   「确实要自建分组」时才用，否则等于凭空多一个一级菜单。字段语义见
+   `apps/api/app/Support/ExtensionManifest/manifest.go` 的 `AdminPage.Group` 注释，schema 里它非必填。
 
 ## 7. 品牌资产
 

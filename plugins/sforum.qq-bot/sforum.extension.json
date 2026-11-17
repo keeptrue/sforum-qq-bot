@@ -4,7 +4,6 @@
     "pages": [
       {
         "description": "新帖推送到 QQ 群、消息模板、群 ID 识别与推送状态。",
-        "group": "integration",
         "icon": "i-tabler-brand-qq",
         "label": "QQ 机器人",
         "menu": true,
@@ -186,7 +185,7 @@
   "openapi": [
     {
       "contractVersion": "sforum.qq-bot.openapi.routes@1",
-      "digest": "2ebc3dcbcd30491d54a2aa30b42f49355f866f1adcee9d6fda1ef4eed0901070",
+      "digest": "d7cae4b54bbf14ed8bd7a792fa0e209a91c746319078ae6354e6ef064b07f6af",
       "id": "sforum.qq-bot.openapi.routes",
       "namespace": "sforum.qq-bot",
       "path": "openapi/routes.yaml"
@@ -312,7 +311,7 @@
       "version": "1"
     },
     {
-      "digest": "2ebc3dcbcd30491d54a2aa30b42f49355f866f1adcee9d6fda1ef4eed0901070",
+      "digest": "d7cae4b54bbf14ed8bd7a792fa0e209a91c746319078ae6354e6ef064b07f6af",
       "id": "sforum.qq-bot.file.openapi",
       "kind": "openapi",
       "path": "openapi/routes.yaml"
@@ -476,5 +475,5 @@
   "sforumVersion": "\u003e=0.1.0",
   "type": "plugin",
   "url": "https://github.com/keeptrue/sforum-qq-bot",
-  "version": "0.4.1"
+  "version": "0.4.2"
 }
