@@ -19,8 +19,11 @@ function qrNode(connectUrl: string): Node | null {
       blackColor: '#111111',
       whiteColor: '#ffffff'
     })
-    // Parsed as XML and imported as a node, never assigned as HTML: a malformed
-    // or hostile string cannot become markup inside the admin page.
+    // uqr only emits geometry (svg/rect/path) derived from the encoded URL, so
+    // this markup is generated, not free-form input. Parsing it as XML and
+    // importing the node keeps us off the innerHTML path and yields a real SVG
+    // node the stylesheet can size. It is not a sanitizer: nothing else should
+    // be fed through here.
     const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml')
     if (!parsed.documentElement) return null
     return document.importNode(parsed.documentElement, true)
@@ -101,7 +104,10 @@ export function createBindCard(ctx: AppContext): Readonly<{ root: HTMLElement, d
         button(ctx.t('bind.start'), 'primary', () => { void start() }),
         manualButton()))
     } else if (phase === 'ready') {
+      // A stored AppSecret with no visible AppID still means "configured": the
+      // host only tells us the secret exists, never its value.
       if (appId) nodes.push(el('p', { class: 'qqbot-bind__current' }, ctx.t('bind.boundId', { id: appId })))
+      else if (ctx.secretSaved) nodes.push(el('p', { class: 'qqbot-bind__current' }, ctx.t('bind.secretReady')))
       nodes.push(el('div', { class: 'qqbot-bind__actions' },
         button(ctx.t('bind.rebind'), 'secondary', () => { void start() }),
         manualButton()))

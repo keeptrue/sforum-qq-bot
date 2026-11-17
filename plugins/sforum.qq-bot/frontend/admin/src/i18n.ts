@@ -5,6 +5,7 @@ const zhCN = {
   'bind.manual': '手动填写凭据',
   'bind.retry': '重新生成二维码',
   'bind.rebind': '重新绑定',
+  'bind.secretReady': '凭据已配置（AppSecret 已保存，AppID 可在下方补全）',
   'bind.starting': '正在生成二维码…',
   'bind.waiting': '用手机 QQ 扫码，然后在手机上确认授权。',
   'bind.expires': '{time} 后过期',
@@ -61,6 +62,12 @@ const zhCN = {
 
   'error.routeTitle': '先在插件列表启用本插件，再回来绑定。',
   'error.routeDetail': '如果插件已经启用，请确认后端已随保存重启；原始错误不在这里展示。',
+  'error.permissionTitle': '当前账号没有这个插件的管理权限。',
+  'error.permissionDetail': '需要 sforum.qq-bot.manage 权限；请超级管理员分配，或换一个有权限的账号再试。',
+  'error.rateTitle': '操作太频繁，被插件侧的限流挡住了。',
+  'error.rateDetail': '等几秒再试；连续点「重新生成二维码」或反复触发预览会撞同一道限流。',
+  'error.serviceTitle': '插件服务暂时不可用。',
+  'error.serviceDetail': '后端可能刚重启或返回了错误；稍后再试，原始错误不会显示在这里。',
   'error.generic': '操作没有成功，请重试。',
   'error.saveFailed': '扫码成功，但自动保存没有生效，请检查后在页面底部手动保存。'
 } as const
@@ -74,6 +81,7 @@ const enUS: Record<MessageKey, string> = {
   'bind.manual': 'Enter credentials by hand',
   'bind.retry': 'Generate a new code',
   'bind.rebind': 'Connect again',
+  'bind.secretReady': 'Credentials configured (AppSecret saved; add the AppID below)',
   'bind.starting': 'Generating the QR code…',
   'bind.waiting': 'Scan the code with mobile QQ, then confirm on the phone.',
   'bind.expires': 'expires in {time}',
@@ -130,6 +138,12 @@ const enUS: Record<MessageKey, string> = {
 
   'error.routeTitle': 'Enable this plugin in the plugin list, then come back.',
   'error.routeDetail': 'If the plugin is already enabled, check that the backend restarted after the last save; raw errors are not shown here.',
+  'error.permissionTitle': 'This account cannot manage the plugin.',
+  'error.permissionDetail': 'It needs the sforum.qq-bot.manage permission; ask a super administrator to grant it, or switch to an account that has it.',
+  'error.rateTitle': 'Too many requests; the plugin rate limit stopped this one.',
+  'error.rateDetail': 'Wait a few seconds and retry; repeated QR regeneration or previews hit the same limit.',
+  'error.serviceTitle': 'The plugin service is unavailable right now.',
+  'error.serviceDetail': 'The backend may have just restarted or returned an error; try again shortly. Raw errors are never shown here.',
   'error.generic': 'That did not work. Please try again.',
   'error.saveFailed': 'Scanned, but the automatic save did not take effect. Check the form and save it at the bottom of the page.'
 }

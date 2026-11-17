@@ -27,6 +27,45 @@ const GROUP_HINT: Record<string, MessageKey> = {
 const GROUP_ORDER: readonly string[] = ['connection', 'targets', 'template', 'limits', 'probe']
 const PREVIEW_KEYS: readonly string[] = ['message_template', 'message_format', 'signature', 'excerpt_limit', 'max_message_chars']
 
+type BannerKind = 'route' | 'permission' | 'rate' | 'service'
+
+const BANNER_KEYS: Record<BannerKind, Readonly<{ title: MessageKey, detail: MessageKey }>> = {
+  route: { title: 'error.routeTitle', detail: 'error.routeDetail' },
+  permission: { title: 'error.permissionTitle', detail: 'error.permissionDetail' },
+  rate: { title: 'error.rateTitle', detail: 'error.rateDetail' },
+  service: { title: 'error.serviceTitle', detail: 'error.serviceDetail' }
+}
+
+/**
+ * The host request layer rejects with its own error object; the HTTP status can
+ * live on a few shapes depending on where the failure happened. Read it
+ * defensively and never surface the raw message.
+ */
+function errorStatus(value: unknown): number | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const source = value as {
+    status?: unknown
+    statusCode?: unknown
+    response?: { status?: unknown }
+    cause?: { status?: unknown }
+  }
+  for (const candidate of [source.status, source.statusCode, source.response?.status, source.cause?.status]) {
+    if (typeof candidate === 'number' && candidate >= 400 && candidate <= 599) return candidate
+  }
+  return undefined
+}
+
+function classifyError(value: unknown): BannerKind {
+  const status = errorStatus(value)
+  // No status at all means the request never reached the plugin (offline,
+  // aborted, or the route does not exist yet): that is the "enable it first"
+  // case, not a server fault.
+  if (status === undefined || status === 404) return 'route'
+  if (status === 401 || status === 403) return 'permission'
+  if (status === 429) return 'rate'
+  return 'service'
+}
+
 export type SettingsApp = Readonly<{ root: HTMLElement, destroy: () => void }>
 
 export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
@@ -42,13 +81,20 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
     draft[item.key] = typeof item.value === 'string' ? item.value : (item.default ?? '')
   }
 
-  const banner = el(
-    'div',
-    { class: 'qqbot-banner', role: 'alert' },
-    el('strong', {}, t('error.routeTitle')),
-    el('span', { class: 'qqbot-banner__detail' }, t('error.routeDetail'))
-  )
+  // One banner, four honest copies: "not enabled" and "you lack the permission"
+  // are different problems for the operator, and a 429 asks for patience rather
+  // than a settings change.
+  const bannerTitle = el('strong')
+  const bannerDetail = el('span', { class: 'qqbot-banner__detail' })
+  const banner = el('div', { class: 'qqbot-banner', role: 'alert' }, bannerTitle, bannerDetail)
   banner.hidden = true
+
+  const showBanner = (kind: BannerKind) => {
+    const keys = BANNER_KEYS[kind]
+    bannerTitle.textContent = t(keys.title)
+    bannerDetail.textContent = t(keys.detail)
+    banner.hidden = false
+  }
 
   const controls = new Map<string, FieldControl>()
   const inputListeners = new Map<string, Set<() => void>>()
@@ -75,7 +121,9 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
     zh: i18n.zh,
     draft,
     disposed: false,
-    secretSaved: false,
+    // secretSet is the host telling us "a secret is stored"; the value itself is
+    // never sent back. The input stays empty and the draft keeps the host value.
+    secretSaved: itemList.some(item => item.key === 'app_secret' && item.secretSet === true),
     item: key => items.get(key),
     async request<T>(path: string, options: Record<string, unknown> = {}): Promise<T> {
       try {
@@ -87,7 +135,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
         banner.hidden = true
         return result
       } catch (error) {
-        banner.hidden = false
+        showBanner(classifyError(error))
         throw error
       }
     },

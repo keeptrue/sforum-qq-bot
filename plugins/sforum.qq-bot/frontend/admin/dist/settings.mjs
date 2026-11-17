@@ -770,7 +770,7 @@ function B(t) {
 		if (o === "idle") n.push(e("div", { class: "qqbot-bind__actions" }, y(t.t("bind.start"), "primary", () => {
 			E();
 		}), b()));
-		else if (o === "ready") s && n.push(e("p", { class: "qqbot-bind__current" }, t.t("bind.boundId", { id: s }))), n.push(e("div", { class: "qqbot-bind__actions" }, y(t.t("bind.rebind"), "secondary", () => {
+		else if (o === "ready") s ? n.push(e("p", { class: "qqbot-bind__current" }, t.t("bind.boundId", { id: s }))) : t.secretSaved && n.push(e("p", { class: "qqbot-bind__current" }, t.t("bind.secretReady"))), n.push(e("div", { class: "qqbot-bind__actions" }, y(t.t("bind.rebind"), "secondary", () => {
 			E();
 		}), b()));
 		else if (o === "starting") a.setAttribute("aria-busy", "true"), n.push(e("p", { class: "qqbot-muted" }, t.t("bind.starting")));
@@ -1153,6 +1153,7 @@ var de = {
 	"bind.manual": "手动填写凭据",
 	"bind.retry": "重新生成二维码",
 	"bind.rebind": "重新绑定",
+	"bind.secretReady": "凭据已配置（AppSecret 已保存，AppID 可在下方补全）",
 	"bind.starting": "正在生成二维码…",
 	"bind.waiting": "用手机 QQ 扫码，然后在手机上确认授权。",
 	"bind.expires": "{time} 后过期",
@@ -1204,6 +1205,12 @@ var de = {
 	"footer.statusFail": "读取状态失败",
 	"error.routeTitle": "先在插件列表启用本插件，再回来绑定。",
 	"error.routeDetail": "如果插件已经启用，请确认后端已随保存重启；原始错误不在这里展示。",
+	"error.permissionTitle": "当前账号没有这个插件的管理权限。",
+	"error.permissionDetail": "需要 sforum.qq-bot.manage 权限；请超级管理员分配，或换一个有权限的账号再试。",
+	"error.rateTitle": "操作太频繁，被插件侧的限流挡住了。",
+	"error.rateDetail": "等几秒再试；连续点「重新生成二维码」或反复触发预览会撞同一道限流。",
+	"error.serviceTitle": "插件服务暂时不可用。",
+	"error.serviceDetail": "后端可能刚重启或返回了错误；稍后再试，原始错误不会显示在这里。",
 	"error.generic": "操作没有成功，请重试。",
 	"error.saveFailed": "扫码成功，但自动保存没有生效，请检查后在页面底部手动保存。"
 }, fe = {
@@ -1213,6 +1220,7 @@ var de = {
 	"bind.manual": "Enter credentials by hand",
 	"bind.retry": "Generate a new code",
 	"bind.rebind": "Connect again",
+	"bind.secretReady": "Credentials configured (AppSecret saved; add the AppID below)",
 	"bind.starting": "Generating the QR code…",
 	"bind.waiting": "Scan the code with mobile QQ, then confirm on the phone.",
 	"bind.expires": "expires in {time}",
@@ -1264,6 +1272,12 @@ var de = {
 	"footer.statusFail": "Could not read the status",
 	"error.routeTitle": "Enable this plugin in the plugin list, then come back.",
 	"error.routeDetail": "If the plugin is already enabled, check that the backend restarted after the last save; raw errors are not shown here.",
+	"error.permissionTitle": "This account cannot manage the plugin.",
+	"error.permissionDetail": "It needs the sforum.qq-bot.manage permission; ask a super administrator to grant it, or switch to an account that has it.",
+	"error.rateTitle": "Too many requests; the plugin rate limit stopped this one.",
+	"error.rateDetail": "Wait a few seconds and retry; repeated QR regeneration or previews hit the same limit.",
+	"error.serviceTitle": "The plugin service is unavailable right now.",
+	"error.serviceDetail": "The backend may have just restarted or returned an error; try again shortly. Raw errors are never shown here.",
 	"error.generic": "That did not work. Please try again.",
 	"error.saveFailed": "Scanned, but the automatic save did not take effect. Check the form and save it at the bottom of the page."
 };
@@ -1328,13 +1342,13 @@ function Y(e) {
 	let t = Number.parseInt(e, 10);
 	return Number.isFinite(t) ? t : void 0;
 }
-function X(e, t) {
+function _e(e, t) {
 	let n = document.activeElement === e, r = n ? e.selectionStart ?? e.value.length : e.value.length, i = n ? e.selectionEnd ?? r : r;
 	e.value = `${e.value.slice(0, r)}${t}${e.value.slice(i)}`, e.dispatchEvent(new Event("input", { bubbles: !0 }));
 	let a = r + t.length;
 	e.focus(), e.setSelectionRange(a, a);
 }
-function _e(t, n) {
+function ve(t, n) {
 	let r = e("div", { class: "qqbot-chips" });
 	for (let i of me) {
 		let a = `{{${i.token}}}`, o = e("button", {
@@ -1343,11 +1357,11 @@ function _e(t, n) {
 			title: t.zh ? `${a} / {{${i.alias}}}` : a,
 			"aria-label": t.zh ? `${a}（${i.alias}）` : a
 		}, e("code", {}, a), t.zh ? e("span", { class: "qqbot-chip__alias" }, i.alias) : null);
-		o.addEventListener("click", () => X(n(), a)), r.append(o);
+		o.addEventListener("click", () => _e(n(), a)), r.append(o);
 	}
 	return e("div", { class: "qqbot-tokens" }, e("p", { class: "qqbot-tokens__title" }, t.t("template.tokens")), r, e("p", { class: "qqbot-tokens__hint" }, t.t("template.tokensHint")));
 }
-function ve(t) {
+function ye(t) {
 	let n = "qqbot-preview-title", r = e("pre", { class: "qqbot-preview__body" }), i = e("span", { class: "qqbot-count" }), a = e("span", { class: "qqbot-badge qqbot-badge--warn" }, t.t("template.truncated"));
 	a.hidden = !0;
 	let o = e("p", { class: "qqbot-preview__unknown" });
@@ -1398,7 +1412,7 @@ function ve(t) {
 		}
 	};
 }
-function ye(e) {
+function be(e) {
 	let t = J(e, {
 		id: "template",
 		keys: ["message_format", "excerpt_limit"],
@@ -1406,10 +1420,10 @@ function ye(e) {
 		hint: e.t("group.template.hint")
 	}), n = t.querySelector(".qqbot-grid"), r = q(e, "message_template");
 	if (n && r) {
-		let t = _e(e, () => r.control);
+		let t = ve(e, () => r.control);
 		r.root.insertBefore(t, r.control), n.append(r.root);
 	}
-	let i = ve(e);
+	let i = ye(e);
 	n && n.append(i.root);
 	let a = q(e, "signature");
 	return n && a && n.append(a.root), {
@@ -1418,52 +1432,86 @@ function ye(e) {
 	};
 }
 // src/app.ts
-var Z = {
+var X = {
 	connection: "group.connection",
 	targets: "group.targets",
 	template: "group.template",
 	limits: "group.limits",
 	probe: "group.probe"
-}, Q = {
+}, Z = {
 	connection: "group.connection.hint",
 	targets: "group.targets.hint",
 	template: "group.template.hint",
 	limits: "group.limits.hint",
 	probe: "group.probe.hint"
-}, $ = [
+}, Q = [
 	"connection",
 	"targets",
 	"template",
 	"limits",
 	"probe"
-], be = [
+], $ = [
 	"message_template",
 	"message_format",
 	"signature",
 	"excerpt_limit",
 	"max_message_chars"
-];
-function xe(t) {
+], xe = {
+	route: {
+		title: "error.routeTitle",
+		detail: "error.routeDetail"
+	},
+	permission: {
+		title: "error.permissionTitle",
+		detail: "error.permissionDetail"
+	},
+	rate: {
+		title: "error.rateTitle",
+		detail: "error.rateDetail"
+	},
+	service: {
+		title: "error.serviceTitle",
+		detail: "error.serviceDetail"
+	}
+};
+function Se(e) {
+	if (!e || typeof e != "object") return;
+	let t = e;
+	for (let e of [
+		t.status,
+		t.statusCode,
+		t.response?.status,
+		t.cause?.status
+	]) if (typeof e == "number" && e >= 400 && e <= 599) return e;
+}
+function Ce(e) {
+	let t = Se(e);
+	return t === void 0 || t === 404 ? "route" : t === 401 || t === 403 ? "permission" : t === 429 ? "rate" : "service";
+}
+function we(t) {
 	let n = pe(t.locale), r = n.t, i = t.settings.items ?? [], a = /* @__PURE__ */ new Map(), o = {};
 	for (let e of i) a.set(e.key, e), o[e.key] = typeof e.value == "string" ? e.value : e.default ?? "";
-	let s = e("div", {
+	let s = e("strong"), c = e("span", { class: "qqbot-banner__detail" }), l = e("div", {
 		class: "qqbot-banner",
 		role: "alert"
-	}, e("strong", {}, r("error.routeTitle")), e("span", { class: "qqbot-banner__detail" }, r("error.routeDetail")));
-	s.hidden = !0;
-	let c = /* @__PURE__ */ new Map(), l = /* @__PURE__ */ new Map(), u = /* @__PURE__ */ new Set(), d = (e) => {
-		let t = l.get(e);
+	}, s, c);
+	l.hidden = !0;
+	let u = (e) => {
+		let t = xe[e];
+		s.textContent = r(t.title), c.textContent = r(t.detail), l.hidden = !1;
+	}, d = /* @__PURE__ */ new Map(), f = /* @__PURE__ */ new Map(), p = /* @__PURE__ */ new Set(), m = (e) => {
+		let t = f.get(e);
 		if (t) for (let e of t) e();
-	}, f = (e, t) => {
+	}, h = (e, t) => {
 		e instanceof HTMLInputElement && e.type === "checkbox" ? e.checked = t === "true" : e.value !== t && (e.value = t);
-	}, p = {
+	}, g = {
 		bridge: t,
 		i18n: n,
 		t: r,
 		zh: n.zh,
 		draft: o,
 		disposed: !1,
-		secretSaved: !1,
+		secretSaved: i.some((e) => e.key === "app_secret" && e.secretSet === !0),
 		item: (e) => a.get(e),
 		async request(e, n = {}) {
 			try {
@@ -1471,9 +1519,9 @@ function xe(t) {
 					...n,
 					responseMode: "body"
 				});
-				return s.hidden = !0, r;
+				return l.hidden = !0, r;
 			} catch (e) {
-				throw s.hidden = !1, e;
+				throw u(Ce(e)), e;
 			}
 		},
 		toast: (e, n, r) => t.toast({
@@ -1484,74 +1532,74 @@ function xe(t) {
 		getValue: (e) => o[e] ?? "",
 		setValue: (e, n, r = !0) => {
 			o[e] = n, t.settings.updateValue(e, n);
-			let i = c.get(e);
-			r && i && f(i, n);
+			let i = d.get(e);
+			r && i && h(i, n);
 		},
 		registerControl: (e, n, r) => {
-			c.set(e, n);
+			d.set(e, n);
 			let i = () => {
 				let n = r();
-				o[e] !== n && (o[e] = n, t.settings.updateValue(e, n)), d(e);
+				o[e] !== n && (o[e] = n, t.settings.updateValue(e, n)), m(e);
 			};
 			n.addEventListener("input", i), n.addEventListener("change", i);
 		},
 		onInput: (e, t) => {
 			for (let n of e) {
-				let e = l.get(n) ?? /* @__PURE__ */ new Set();
-				e.add(t), l.set(n, e);
+				let e = f.get(n) ?? /* @__PURE__ */ new Set();
+				e.add(t), f.set(n, e);
 			}
 		},
-		focus: (e) => c.get(e)?.focus(),
+		focus: (e) => d.get(e)?.focus(),
 		syncFromBridge: () => {
 			let e = t.settings.values(), n = !1;
 			for (let t of Object.keys(o)) {
 				let r = e[t];
 				if (typeof r != "string" || r === o[t]) continue;
 				o[t] = r;
-				let i = c.get(t);
-				i && f(i, r), be.includes(t) && (n = !0);
+				let i = d.get(t);
+				i && h(i, r), $.includes(t) && (n = !0);
 			}
-			n && d("message_template");
+			n && m("message_template");
 		},
 		markSecretSaved: () => {
-			p.secretSaved = !0;
-			for (let e of u) e();
+			g.secretSaved = !0;
+			for (let e of p) e();
 		},
 		onSecretSavedChange: (e) => {
-			u.add(e);
+			p.add(e);
 		}
-	}, m = B(p), h = ye(p), g = U(p), _ = /* @__PURE__ */ new Map();
+	}, _ = B(g), v = be(g), y = U(g), b = /* @__PURE__ */ new Map();
 	for (let e of i) {
-		let t = (e.groupId || "").trim() || "other", n = _.get(t);
-		n ? n.push(e) : _.set(t, [e]);
+		let t = (e.groupId || "").trim() || "other", n = b.get(t);
+		n ? n.push(e) : b.set(t, [e]);
 	}
-	let v = [...$.filter((e) => _.has(e)), ...[..._.keys()].filter((e) => !$.includes(e))], y = [];
-	for (let e of v) {
-		let t = _.get(e) ?? [];
+	let x = [...Q.filter((e) => b.has(e)), ...[...b.keys()].filter((e) => !Q.includes(e))], S = [];
+	for (let e of x) {
+		let t = b.get(e) ?? [];
 		if (e === "template") {
-			y.push(h.root);
+			S.push(v.root);
 			continue;
 		}
-		let n = e === "other" ? r("group.other") : Z[e] ? r(Z[e]) : e, i = e === "other" ? r("group.other.hint") : Q[e] ? r(Q[e]) : void 0;
-		y.push(J(p, {
+		let n = e === "other" ? r("group.other") : X[e] ? r(X[e]) : e, i = e === "other" ? r("group.other.hint") : Z[e] ? r(Z[e]) : void 0;
+		S.push(J(g, {
 			id: e,
 			keys: t.map((e) => e.key),
 			title: n,
 			hint: i
 		}));
 	}
-	let b = e("div", { class: "qqbot-settings" }, s, m.root, ...y, g.root);
+	let C = e("div", { class: "qqbot-settings" }, l, _.root, ...S, y.root);
 	return {
-		root: b,
+		root: C,
 		destroy: () => {
-			p.disposed = !0, m.destroy(), h.stop(), g.destroy(), b.remove();
+			g.disposed = !0, _.destroy(), v.stop(), y.destroy(), C.remove();
 		}
 	};
 }
 // src/settings.ts
-var Se = 1;
-function Ce(e, t) {
-	let n = xe(t);
+var Te = 1;
+function Ee(e, t) {
+	let n = we(t);
 	return e.append(n.root), () => n.destroy();
 }
-export { Se as apiVersion, Ce as mount };
+export { Te as apiVersion, Ee as mount };
