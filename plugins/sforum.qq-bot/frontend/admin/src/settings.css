@@ -1,0 +1,590 @@
+/*
+ * Only host-provided appearance variables are consumed here: the admin shell
+ * flips --bg-admin-card / --border-admin / --text-admin-main under `.dark`, and
+ * --sf-* carries the site accent. No hardcoded palette, no animations.
+ */
+
+.qqbot-settings {
+  --qq-surface: var(--bg-admin-card, #ffffff);
+  --qq-canvas: var(--bg-admin-app, #f8fafc);
+  --qq-border: var(--border-admin, #e2e8f0);
+  --qq-text: var(--text-admin-main, #0f172a);
+  --qq-muted: color-mix(in srgb, var(--qq-text) 62%, transparent);
+  --qq-accent: var(--sf-accent, #0d9488);
+  --qq-accent-hover: var(--sf-accent-hover, var(--qq-accent));
+  --qq-on-accent: var(--sf-accent-contrast, #ffffff);
+  --qq-focus: var(--sf-accent-focus, rgb(13 148 136 / 0.18));
+  --qq-danger: var(--ui-color-error-500, #dc2626);
+  --qq-radius: 0.6rem;
+
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+  color: var(--qq-text);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.qqbot-settings *,
+.qqbot-settings *::before,
+.qqbot-settings *::after {
+  box-sizing: border-box;
+}
+
+.qqbot-settings [hidden] {
+  display: none !important;
+}
+
+.qqbot-settings h3,
+.qqbot-settings h4,
+.qqbot-settings p,
+.qqbot-settings pre {
+  margin: 0;
+}
+
+.qqbot-muted {
+  color: var(--qq-muted);
+  font-size: 0.8125rem;
+}
+
+.qqbot-live {
+  margin: 0;
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+  min-height: 1.1em;
+}
+
+.qqbot-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- route banner ---------- */
+
+.qqbot-banner {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--qq-danger) 42%, var(--qq-border));
+  border-left-width: 3px;
+  border-radius: var(--qq-radius);
+  background: color-mix(in srgb, var(--qq-danger) 8%, var(--qq-surface));
+  font-size: 0.8125rem;
+}
+
+.qqbot-banner strong {
+  font-weight: 650;
+}
+
+.qqbot-banner__detail {
+  color: var(--qq-muted);
+}
+
+/* ---------- card ---------- */
+
+.qqbot-card {
+  display: grid;
+  min-width: 0;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--qq-border);
+  border-radius: var(--qq-radius);
+  background: var(--qq-surface);
+}
+
+.qqbot-card__header {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.qqbot-card__title {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.qqbot-card__hint {
+  color: var(--qq-muted);
+  font-size: 0.8125rem;
+}
+
+/* ---------- fields ---------- */
+
+.qqbot-grid {
+  display: grid;
+  gap: 0.95rem 1.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+}
+
+.qqbot-field {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 0.35rem;
+}
+
+.qqbot-field--full {
+  grid-column: 1 / -1;
+}
+
+.qqbot-field--boolean {
+  gap: 0.3rem;
+}
+
+.qqbot-field__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.35rem;
+}
+
+.qqbot-field__label {
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.qqbot-field__desc {
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.qqbot-field__hint {
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+}
+
+/* ---------- controls ---------- */
+
+.qqbot-input {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--qq-border);
+  border-radius: 0.45rem;
+  background: var(--qq-surface);
+  color: var(--qq-text);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.qqbot-input::placeholder {
+  color: var(--qq-muted);
+  opacity: 1;
+}
+
+.qqbot-settings textarea.qqbot-input {
+  min-height: 4.5rem;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.qqbot-input--mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+.qqbot-input:focus-visible {
+  border-color: var(--qq-accent);
+  box-shadow: 0 0 0 3px var(--qq-focus);
+  outline: none;
+}
+
+.qqbot-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.qqbot-check input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  accent-color: var(--qq-accent);
+  cursor: pointer;
+}
+
+.qqbot-check input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--qq-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- buttons ---------- */
+
+.qqbot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--qq-border);
+  border-radius: 0.45rem;
+  background: var(--qq-surface);
+  color: var(--qq-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.qqbot-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--qq-text) 5%, var(--qq-surface));
+}
+
+.qqbot-btn:focus-visible {
+  outline: 2px solid var(--qq-accent);
+  outline-offset: 2px;
+}
+
+.qqbot-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.qqbot-btn--primary {
+  border-color: var(--qq-accent);
+  background: var(--qq-accent);
+  color: var(--qq-on-accent);
+  font-weight: 600;
+}
+
+.qqbot-btn--primary:hover:not(:disabled) {
+  background: var(--qq-accent-hover);
+  border-color: var(--qq-accent-hover);
+}
+
+.qqbot-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--qq-muted);
+}
+
+.qqbot-btn--ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--qq-text) 6%, transparent);
+  color: var(--qq-text);
+}
+
+/* ---------- badges ---------- */
+
+.qqbot-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--qq-accent) 30%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--qq-accent) 14%, transparent);
+  color: var(--qq-text);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.qqbot-badge--warn {
+  border-color: color-mix(in srgb, var(--qq-danger) 35%, transparent);
+  background: color-mix(in srgb, var(--qq-danger) 12%, transparent);
+}
+
+/* ---------- variable chips ---------- */
+
+.qqbot-tokens {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.1rem 0 0.15rem;
+}
+
+.qqbot-tokens__title,
+.qqbot-tokens__hint {
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+}
+
+.qqbot-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.qqbot-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.32rem;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid var(--qq-border);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--qq-text);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.qqbot-chip:hover {
+  border-color: var(--qq-accent);
+  background: color-mix(in srgb, var(--qq-accent) 8%, transparent);
+}
+
+.qqbot-chip:focus-visible {
+  outline: 2px solid var(--qq-accent);
+  outline-offset: 1px;
+}
+
+.qqbot-chip code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.qqbot-chip__alias {
+  color: var(--qq-muted);
+  font-size: 0.6875rem;
+}
+
+/* ---------- preview ---------- */
+
+.qqbot-preview {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 0;
+  min-width: 0;
+  border: 1px dashed color-mix(in srgb, var(--qq-text) 20%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--qq-text) 3%, var(--qq-surface));
+}
+
+.qqbot-preview__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px dashed color-mix(in srgb, var(--qq-text) 16%, transparent);
+}
+
+.qqbot-preview__title {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--qq-muted);
+}
+
+.qqbot-count {
+  margin-left: auto;
+  color: var(--qq-muted);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.qqbot-preview__body {
+  padding: 0.75rem 0.8rem;
+  max-height: 17rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+.qqbot-preview__body.is-empty {
+  color: var(--qq-muted);
+  font-family: inherit;
+  font-style: normal;
+}
+
+.qqbot-preview__unknown {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.8rem 0.65rem;
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+}
+
+.qqbot-preview__var {
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--qq-danger) 10%, transparent);
+  color: var(--qq-text);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.6875rem;
+}
+
+/* ---------- bind card ---------- */
+
+.qqbot-bind {
+  border-color: color-mix(in srgb, var(--qq-accent) 32%, var(--qq-border));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--qq-accent) 6%, var(--qq-surface)),
+      var(--qq-surface) 55%
+    );
+}
+
+.qqbot-bind__body {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.qqbot-bind__layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.15rem;
+  align-items: flex-start;
+}
+
+.qqbot-bind__side {
+  display: grid;
+  flex: 1 1 15rem;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.qqbot-qr {
+  display: grid;
+  place-items: center;
+  width: 12rem;
+  height: 12rem;
+  padding: 0.4rem;
+  border: 1px solid var(--qq-border);
+  border-radius: 0.5rem;
+  /* A QR code is scanned off a bright screen; this box stays white in dark mode. */
+  background: #ffffff;
+}
+
+.qqbot-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.qqbot-bind__waiting {
+  font-weight: 500;
+}
+
+.qqbot-bind__countdown {
+  color: var(--qq-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.qqbot-bind__link {
+  color: var(--qq-accent);
+  font-size: 0.75rem;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+.qqbot-bind__link:focus-visible {
+  outline: 2px solid var(--qq-accent);
+  outline-offset: 2px;
+}
+
+.qqbot-bind__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.15rem;
+}
+
+.qqbot-bind__current {
+  color: var(--qq-muted);
+  font-size: 0.8125rem;
+}
+
+.qqbot-bind__done {
+  color: var(--qq-text);
+  font-weight: 600;
+}
+
+.qqbot-bind__error {
+  color: var(--qq-text);
+  font-size: 0.8125rem;
+}
+
+.qqbot-bind .qqbot-live {
+  min-height: 0;
+}
+
+/* ---------- footer ---------- */
+
+.qqbot-footer {
+  gap: 0.75rem;
+}
+
+.qqbot-footer__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.qqbot-footer__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.qqbot-output {
+  padding: 0.7rem 0.8rem;
+  max-height: 18rem;
+  overflow: auto;
+  border: 1px solid var(--qq-border);
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--qq-text) 4%, var(--qq-surface));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.qqbot-output--bad {
+  border-color: color-mix(in srgb, var(--qq-danger) 42%, var(--qq-border));
+  background: color-mix(in srgb, var(--qq-danger) 7%, var(--qq-surface));
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 40rem) {
+  .qqbot-card {
+    padding: 0.85rem 0.9rem;
+  }
+
+  .qqbot-bind__layout {
+    gap: 0.85rem;
+  }
+
+  .qqbot-qr {
+    width: 9.5rem;
+    height: 9.5rem;
+  }
+
+  .qqbot-footer__row {
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qqbot-settings * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

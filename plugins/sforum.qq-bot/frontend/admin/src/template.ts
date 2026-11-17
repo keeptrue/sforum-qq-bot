@@ -1,0 +1,194 @@
+import type { PreviewResponse } from './api'
+import { el } from './dom'
+import { createSection, renderField } from './form'
+import type { AppContext } from './types'
+
+type Variable = Readonly<{ token: string, alias: string }>
+
+// The nine variables the backend renders, in the order the manifest lists them.
+const VARIABLES: readonly Variable[] = [
+  { token: 'title', alias: '标题' },
+  { token: 'author', alias: '作者' },
+  { token: 'category', alias: '分类' },
+  { token: 'tags', alias: '标签' },
+  { token: 'excerpt', alias: '摘要' },
+  { token: 'url', alias: '链接' },
+  { token: 'topicId', alias: '主题ID' },
+  { token: 'date', alias: '日期' },
+  { token: 'signature', alias: '签名' }
+]
+
+const PREVIEW_KEYS = ['message_template', 'message_format', 'signature', 'excerpt_limit', 'max_message_chars'] as const
+const PREVIEW_DEBOUNCE_MS = 300
+
+// An empty or non-numeric field must be omitted, not guessed: the route falls
+// back to the saved value for any key the request leaves out.
+function optionalInt(value: string): number | undefined {
+  if (value.trim() === '') return undefined
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function insertAtCursor(control: HTMLTextAreaElement, token: string): void {
+  const focused = document.activeElement === control
+  const start = focused ? (control.selectionStart ?? control.value.length) : control.value.length
+  const end = focused ? (control.selectionEnd ?? start) : start
+  control.value = `${control.value.slice(0, start)}${token}${control.value.slice(end)}`
+  control.dispatchEvent(new Event('input', { bubbles: true }))
+  const caret = start + token.length
+  control.focus()
+  control.setSelectionRange(caret, caret)
+}
+
+function chips(ctx: AppContext, getControl: () => HTMLTextAreaElement): HTMLElement {
+  const row = el('div', { class: 'qqbot-chips' })
+  for (const variable of VARIABLES) {
+    const token = `{{${variable.token}}}`
+    const button = el(
+      'button',
+      {
+        type: 'button',
+        class: 'qqbot-chip',
+        title: ctx.zh ? `${token} / {{${variable.alias}}}` : token,
+        'aria-label': ctx.zh ? `${token}（${variable.alias}）` : token
+      },
+      el('code', {}, token),
+      ctx.zh ? el('span', { class: 'qqbot-chip__alias' }, variable.alias) : null
+    )
+    button.addEventListener('click', () => insertAtCursor(getControl(), token))
+    row.append(button)
+  }
+  return el(
+    'div',
+    { class: 'qqbot-tokens' },
+    el('p', { class: 'qqbot-tokens__title' }, ctx.t('template.tokens')),
+    row,
+    el('p', { class: 'qqbot-tokens__hint' }, ctx.t('template.tokensHint'))
+  )
+}
+
+function createPreview(ctx: AppContext) {
+  const titleId = 'qqbot-preview-title'
+  const body = el('pre', { class: 'qqbot-preview__body' })
+  const count = el('span', { class: 'qqbot-count' })
+  const truncated = el('span', { class: 'qqbot-badge qqbot-badge--warn' }, ctx.t('template.truncated'))
+  truncated.hidden = true
+  const unknown = el('p', { class: 'qqbot-preview__unknown' })
+  unknown.hidden = true
+  // Screen-reader announcement only: the visible character count is right here.
+  const live = el('p', { class: 'qqbot-sr-only', role: 'status', 'aria-live': 'polite' })
+
+  const root = el(
+    'div',
+    { class: 'qqbot-preview', 'aria-labelledby': titleId },
+    el(
+      'header',
+      { class: 'qqbot-preview__head' },
+      el('h4', { class: 'qqbot-preview__title', id: titleId }, ctx.t('template.preview')),
+      count,
+      truncated
+    ),
+    body,
+    unknown,
+    live
+  )
+
+  let timer: number | undefined
+  let sequence = 0
+
+  const setText = (text: string) => {
+    const empty = text === ''
+    body.classList.toggle('is-empty', empty)
+    body.textContent = empty ? ctx.t('template.previewEmpty') : text
+    const characters = Array.from(text).length
+    count.textContent = ctx.t('template.count', { n: characters })
+    live.textContent = ctx.t('template.live', { n: characters })
+  }
+
+  const run = async () => {
+    const mine = ++sequence
+    const excerptLimit = optionalInt(ctx.getValue('excerpt_limit'))
+    const maxMessageChars = optionalInt(ctx.getValue('max_message_chars'))
+    const payload = {
+      template: ctx.getValue('message_template'),
+      format: ctx.getValue('message_format') || 'text',
+      signature: ctx.getValue('signature'),
+      ...(excerptLimit === undefined ? {} : { excerptLimit }),
+      ...(maxMessageChars === undefined ? {} : { maxMessageChars })
+    }
+    try {
+      const response = await ctx.request<PreviewResponse>('/preview', { method: 'POST', body: payload })
+      if (mine !== sequence || ctx.disposed) return
+      const text = typeof response?.text === 'string' ? response.text : ''
+      const variables = Array.isArray(response?.unknownVariables)
+        ? response.unknownVariables.filter((value): value is string => typeof value === 'string' && value !== '')
+        : []
+      setText(text)
+      truncated.hidden = response?.truncated !== true
+      unknown.hidden = variables.length === 0
+      if (variables.length > 0) {
+        unknown.replaceChildren(
+          document.createTextNode(`${ctx.t('template.unknown')}: `),
+          ...variables.map(name => el('code', { class: 'qqbot-preview__var' }, `{{${name}}}`))
+        )
+      }
+      return true
+    } catch {
+      if (mine !== sequence || ctx.disposed) return false
+      truncated.hidden = true
+      unknown.hidden = true
+      body.classList.add('is-empty')
+      body.textContent = ctx.t('template.previewFailed')
+      count.textContent = ''
+      return false
+    }
+  }
+
+  const schedule = (delay = PREVIEW_DEBOUNCE_MS) => {
+    if (timer !== undefined) window.clearTimeout(timer)
+    timer = window.setTimeout(() => {
+      timer = undefined
+      void run()
+    }, delay)
+  }
+
+  // Listeners are registered per key, so it does not matter that
+  // max_message_chars lives in a section rendered after this one.
+  ctx.onInput(PREVIEW_KEYS, schedule)
+  schedule(0)
+
+  return {
+    root,
+    stop: () => {
+      if (timer !== undefined) window.clearTimeout(timer)
+      timer = undefined
+    }
+  }
+}
+
+export function createTemplateSection(ctx: AppContext): Readonly<{ root: HTMLElement, stop: () => void }> {
+  const section = createSection(ctx, {
+    id: 'template',
+    keys: ['message_format', 'excerpt_limit'],
+    title: ctx.t('group.template'),
+    hint: ctx.t('group.template.hint')
+  })
+  const grid = section.querySelector('.qqbot-grid')
+
+  const templateField = renderField(ctx, 'message_template')
+  if (grid && templateField) {
+    const tokens = chips(ctx, () => templateField.control as HTMLTextAreaElement)
+    templateField.root.insertBefore(tokens, templateField.control)
+    grid.append(templateField.root)
+  }
+
+  // Preview sits directly under the textarea (the operator is editing it right
+  // there), and the signature field closes the section.
+  const preview = createPreview(ctx)
+  if (grid) grid.append(preview.root)
+
+  const signatureField = renderField(ctx, 'signature')
+  if (grid && signatureField) grid.append(signatureField.root)
+
+  return { root: section, stop: preview.stop }
+}
