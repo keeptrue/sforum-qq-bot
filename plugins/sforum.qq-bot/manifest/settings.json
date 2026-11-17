@@ -187,6 +187,17 @@
       "groupId": "targets"
     },
     {
+      "key": "reply_on_mention",
+      "label": { "zh-CN": "被 @ 时回一句说明", "en-US": "Reply when mentioned" },
+      "description": {
+        "zh-CN": "打开后，机器人在群里被 @ 时用这条消息的 msg_id 回一句固定说明（被动回复，不占主动推送频控）。同一个群 60 秒内只回一次；关闭后只记录群 ID、不回复。",
+        "en-US": "When on, a mention in a group gets one fixed reply through that message's msg_id (a passive reply, so it does not consume the proactive message quota). Each group is answered at most once per 60 seconds; when off the group ID is still recorded but nothing is sent."
+      },
+      "type": "boolean",
+      "default": "true",
+      "groupId": "targets"
+    },
+    {
       "key": "message_format",
       "label": { "zh-CN": "消息形态", "en-US": "Message format" },
       "description": {

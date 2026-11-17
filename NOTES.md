@@ -362,3 +362,28 @@ sed -i "s#^replace github.com/keeptrue/sforum/apps/api v0.0.0 => .*#replace gith
    出现 `=> ../../../../SForum/apps/api`（相对）＝ `prepare-package.sh` 的产物，首行 `go1.27.1`，约 25.5 MB；
    出现绝对路径 `=> /…/SForum/apps/api` ＝ 两个工作流（CI / release）的产物，首行 `go1.26.11`，约 24.5 MB；
    整行不出现 ＝ 宿主 dev 的产物，首行 `go1.26.11`，约 17.0 MB（`-ldflags=-s -w` 已剥符号）。
+
+## 12. 被动回复与主动消息频控（官方「发送群聊消息」页口径）
+
+M1.3 加「被 @ 回一句说明」时按官方文档核对的事实，写在这里备查（代码见
+`backend/gateway.go` 的 `replyToMention` 与 `backend/qqclient.go` 的
+`SendPassiveGroupMessage`）：
+
+- **被动回复靠 `msg_id`**：取自 `GROUP_AT_MESSAGE_CREATE` 事件的 `d.id`，事件发生后
+  **5 分钟内**有效，**不占主动消息频控**；同一条消息最多被回复 **5 次**。
+- **`msg_seq` 与 `msg_id` 联合去重**：相同组合重复发送会失败（`40054005`）。我们固定
+  `msg_seq=1`，靠网关侧「每群 60 秒最多一次」保证同一 `msg_id` 只回一次——固定值让平台
+  成为第二道去重防线，改成自增反而会绕开它。
+- **`event_id` 也能做被动回复**（与 `msg_id` 二选一），支持的事件包含 `GROUP_ADD_ROBOT`：
+  「机器人被拉进群」时回欢迎语是可行的，本轮未做。
+- **群侧接口清单**：按 `group_openid` 的只有 `info` / `bot_state` / `members` / `messages`
+  / `files` / 撤回等，**没有「列出机器人所在群」**——所以「已识别群列表」只能用事件记录
+  （`ClaimRecord`）+ 设置页勾选这条路。
+- **主动消息频控**（本插件不改代码，只备查）：Bot 维度企业/个人认证 60 qpm、未认证 30 qpm；
+  单关系 20 qpm；**每群每天最多接收 1000 条**。插件默认 20/分钟 + 每群每日 800，落在限内。
+- 被动回复相关错误码翻译：`40034005` / `304103` → 被动回复窗口已过期；`40034128` →
+  主动消息受限或被动回复时间/次数用尽；`40054005` → 该消息已被回复过；
+  `40034101` / `40054003` → 机器人不在该群里。
+
+来源：[发送群聊消息](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_groups_group_openid_messages.post.html)、
+[获取群基本信息](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_groups_group_openid_info.get.html)。

@@ -245,6 +245,7 @@ func TestManifestContract(t *testing.T) {
 			"max_retries":              strconv.Itoa(defaultMaxRetries),
 			"send_timeout_seconds":     strconv.Itoa(defaultSendTimeoutSeconds),
 			"enable_group_id_claim":    strconv.FormatBool(defaultEnableGroupIDClaim),
+			"reply_on_mention":         strconv.FormatBool(defaultReplyOnMention),
 			"paused":                   "false",
 			"log_verbose":              "false",
 		}
