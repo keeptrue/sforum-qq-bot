@@ -206,14 +206,34 @@ func (p *plugin) routePreview(request *pluginwire.RouteRequest) (*pluginwire.Rou
 	for _, name := range rendered.Unknown {
 		unknown = append(unknown, name)
 	}
-	return p.routeDocument(request, previewOutputSchema, map[string]any{
+	payload := map[string]any{
 		"source":           source,
 		"text":             rendered.Text,
 		"truncated":        rendered.Truncated,
 		"characters":       utf8.RuneCountInString(rendered.Text),
 		"unknownVariables": unknown,
 		"sampleUsed":       sample.used(),
-	})
+	}
+	if source == previewSourceSaved {
+		// savedSnapshot 是**服务端真相**：本次渲染实际用的已保存配置。宿主给组件
+		// 的 settings.items 是挂载时的值快照（bridge 全文件只调一次），保存成功后
+		// 组件拿不到新值，而 save() 失败也不 reject——组件只能靠这份回显来分辨
+		// 「真的保存了」与「保存失败」。draft 源刻意不带，避免被当成基线。
+		payload["savedSnapshot"] = savedSnapshotDocument(p.cfg)
+	}
+	return p.routeDocument(request, previewOutputSchema, payload)
+}
+
+// savedSnapshotDocument 是已保存配置的只读投影，键名与清单设置项逐字一致，
+// 让设置页组件可以直接把它当成「保存后的基线」。
+func savedSnapshotDocument(config Config) map[string]any {
+	return map[string]any{
+		"message_template":  config.MessageTemplate,
+		"message_format":    config.MessageFormat,
+		"signature":         config.Signature,
+		"excerpt_limit":     config.ExcerptLimit,
+		"max_message_chars": config.MaxMessageChars,
+	}
 }
 
 // renderPreviewSource 按数据源选渲染入口：saved 与推送共用 renderSaved，draft 用

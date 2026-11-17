@@ -30,6 +30,35 @@
     "sampleUsed": {
       "type": "boolean",
       "description": "True when at least one field of the request's sample object replaced the built-in sample value."
+    },
+    "savedSnapshot": {
+      "type": "object",
+      "description": "Present only when source is saved: the stored settings this render actually used, read from the plugin's own configuration rather than from the request. The settings component uses it as the baseline after a save it cannot observe otherwise.",
+      "properties": {
+        "message_template": {
+          "type": "string",
+          "description": "Stored message template (setting message_template)."
+        },
+        "message_format": {
+          "type": "string",
+          "description": "Stored message format (setting message_format)."
+        },
+        "signature": {
+          "type": "string",
+          "description": "Stored signature (setting signature)."
+        },
+        "excerpt_limit": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Stored excerpt limit (setting excerpt_limit); 0 hides the excerpt."
+        },
+        "max_message_chars": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Stored total length bound (setting max_message_chars)."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

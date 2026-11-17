@@ -68,7 +68,7 @@ paths:
               $ref: "#/components/schemas/sforum.qq-bot.preview.input@1"
       responses:
         "200":
-          description: Rendered message plus the source that produced it, the character count and any unresolved placeholders
+          description: Rendered message plus the source that produced it, the character count and any unresolved placeholders. source=saved also echoes savedSnapshot, the stored settings this render used, so the settings component can rebase after a save it cannot observe; source=draft omits it.
           content:
             application/json:
               schema:

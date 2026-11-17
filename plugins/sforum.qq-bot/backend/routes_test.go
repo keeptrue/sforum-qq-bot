@@ -908,6 +908,68 @@ func TestRoutePreviewSavedSourceMatchesPushPath(t *testing.T) {
 	}
 }
 
+// preview：source=saved 回显的 savedSnapshot 是已保存配置，不是请求里的草稿值。
+func TestRoutePreviewSavedSnapshotEchoesSavedConfig(t *testing.T) {
+	config := testConfig()
+	config.MessageTemplate = "【已保存】{{title}}"
+	config.MessageFormat = messageFormatMarkdown
+	config.Signature = "已保存签名"
+	config.ExcerptLimit = 7
+	config.MaxMessageChars = 123
+	instance := newRouteTestPlugin(t, config, nil)
+
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":          previewSourceSaved,
+		"template":        "草稿模板 {{title}}",
+		"format":          "text",
+		"signature":       "草稿签名",
+		"excerptLimit":    3,
+		"maxMessageChars": 9,
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	snapshot, ok := values["savedSnapshot"].(map[string]any)
+	if !ok {
+		t.Fatalf("saved 源应回显 savedSnapshot：%T %v", values["savedSnapshot"], values["savedSnapshot"])
+	}
+	if snapshot["message_template"] != config.MessageTemplate {
+		t.Fatalf("message_template 应取已保存值，得到 %v", snapshot["message_template"])
+	}
+	if snapshot["message_format"] != config.MessageFormat {
+		t.Fatalf("message_format 应取已保存值，得到 %v", snapshot["message_format"])
+	}
+	if snapshot["signature"] != config.Signature {
+		t.Fatalf("signature 应取已保存值，得到 %v", snapshot["signature"])
+	}
+	if limit, ok := snapshot["excerpt_limit"].(float64); !ok || int(limit) != config.ExcerptLimit {
+		t.Fatalf("excerpt_limit 应为 %d，得到 %v", config.ExcerptLimit, snapshot["excerpt_limit"])
+	}
+	if limit, ok := snapshot["max_message_chars"].(float64); !ok || int(limit) != config.MaxMessageChars {
+		t.Fatalf("max_message_chars 应为 %d，得到 %v", config.MaxMessageChars, snapshot["max_message_chars"])
+	}
+	if len(snapshot) != 5 {
+		t.Fatalf("savedSnapshot 只该有五个键，实际 %v", snapshot)
+	}
+}
+
+// preview：source=draft 不带 savedSnapshot，避免组件把草稿当成保存基线。
+func TestRoutePreviewDraftOmitsSavedSnapshot(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routePreviewID, map[string]any{
+		"source":   previewSourceDraft,
+		"template": "草稿 {{title}}",
+	}))
+	if err != nil {
+		t.Fatalf("预览失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, previewOutputSchema)
+	if snapshot, present := values["savedSnapshot"]; present {
+		t.Fatalf("draft 源不该带 savedSnapshot：%v", snapshot)
+	}
+}
+
 // test_push：空群、无凭据、正常三条路径。
 func TestRouteTestPushRejections(t *testing.T) {
 	sender := &fakeSender{}
