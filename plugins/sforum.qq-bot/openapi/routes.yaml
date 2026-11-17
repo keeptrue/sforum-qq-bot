@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SForum QQ Bot admin routes
-  version: 0.3.0
+  version: 0.4.0
 paths:
   /bind/start:
     post:

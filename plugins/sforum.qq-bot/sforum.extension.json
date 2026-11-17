@@ -139,7 +139,7 @@
     "name": "SForum"
   },
   "backend": {
-    "digest": "ae47ea293d604af7e9ef5ac1e2a90b4ebd42e274d3ba5b77c55e37c3e528cab5",
+    "digest": "5e7935a8008c268a504e02019c133686827e20246ef2810f266c875138abcaf2",
     "entry": "backend/plugin",
     "hostApiVersion": "sforum.host@2",
     "protocolVersion": 2,
@@ -186,7 +186,7 @@
   "openapi": [
     {
       "contractVersion": "sforum.qq-bot.openapi.routes@1",
-      "digest": "e1bbdbbbb74b2d6acad00be0a3ca5e24f1acd4f3eae4625777a8a0f2b2c3f9ea",
+      "digest": "94f9e00fb07e7f05034e9339ebf66fe8fef7331ceb0138039e484441bb174d53",
       "id": "sforum.qq-bot.openapi.routes",
       "namespace": "sforum.qq-bot",
       "path": "openapi/routes.yaml"
@@ -194,7 +194,7 @@
   ],
   "packageFiles": [
     {
-      "digest": "ae47ea293d604af7e9ef5ac1e2a90b4ebd42e274d3ba5b77c55e37c3e528cab5",
+      "digest": "5e7935a8008c268a504e02019c133686827e20246ef2810f266c875138abcaf2",
       "id": "sforum.qq-bot.file.backend",
       "kind": "executable",
       "path": "backend/plugin"
@@ -312,19 +312,19 @@
       "version": "1"
     },
     {
-      "digest": "e1bbdbbbb74b2d6acad00be0a3ca5e24f1acd4f3eae4625777a8a0f2b2c3f9ea",
+      "digest": "94f9e00fb07e7f05034e9339ebf66fe8fef7331ceb0138039e484441bb174d53",
       "id": "sforum.qq-bot.file.openapi",
       "kind": "openapi",
       "path": "openapi/routes.yaml"
     },
     {
-      "digest": "52dd95d16c4b1adf8d8b2033fd1ea8afc6f4c02670c3fbd14f3e333f5dccc685",
+      "digest": "2db0e27e9f2cc2c0ac5ef8ec267097691dd64c9f8fe559faf706838f31160175",
       "id": "sforum.qq-bot.file.settings_entry",
       "kind": "frontend",
       "path": "frontend/admin/dist/settings.mjs"
     },
     {
-      "digest": "40335810f4cee9a89cb61afd90d63302f15d31ebf00505d9321abc993c8941c0",
+      "digest": "be1e910f91a783d010096fed7357be181ca0d304eb2dfdd53272cdd9c055712f",
       "id": "sforum.qq-bot.file.settings_style",
       "kind": "asset",
       "path": "frontend/admin/dist/settings.css"
@@ -476,5 +476,5 @@
   "sforumVersion": "\u003e=0.1.0",
   "type": "plugin",
   "url": "https://github.com/keeptrue/sforum-qq-bot",
-  "version": "0.3.0"
+  "version": "0.4.0"
 }
