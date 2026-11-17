@@ -57,6 +57,19 @@ func newRouteRequest(t *testing.T, routeID string, body map[string]any) *pluginw
 	return request
 }
 
+// newRouteRequestAs 在 newRouteRequest 上补一个调用者，其余完全一致。
+//
+// userID<=0 表示「不带 actor」：宿主守卫链路上不会出现这种请求（它要求
+// ActorID>0），只有测试需要构造它来钉住兜底行为。
+func newRouteRequestAs(t *testing.T, routeID string, body map[string]any, userID int64) *pluginwire.RouteRequest {
+	t.Helper()
+	request := newRouteRequest(t, routeID, body)
+	if userID > 0 {
+		request.Context.Actor = &protocolwire.Actor{UserId: userID}
+	}
+	return request
+}
+
 func routeDocumentValues(t *testing.T, response *pluginwire.RouteResponse, schemaRef string) map[string]any {
 	t.Helper()
 	if response == nil {
@@ -152,7 +165,7 @@ func TestRouteBindStart(t *testing.T) {
 	instance.bind.baseURL = server.URL
 	instance.bind.connectBaseURL = "https://q.qq.com"
 
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("建任务失败：%v", err)
 	}
@@ -191,7 +204,7 @@ func TestRouteBindStartRefundsQuotaOnUpstreamFailure(t *testing.T) {
 	instance.bind.baseURL = server.URL
 
 	for attempt := 0; attempt < bindStartPerMinute; attempt++ {
-		response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+		response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 		if err != nil {
 			t.Fatalf("第 %d 次建任务失败：%v", attempt+1, err)
 		}
@@ -201,7 +214,7 @@ func TestRouteBindStartRefundsQuotaOnUpstreamFailure(t *testing.T) {
 	}
 
 	failing.Store(false)
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("回滚配额后建任务失败：%v", err)
 	}
@@ -225,7 +238,7 @@ func TestRouteBindStartRateLimited(t *testing.T) {
 	instance.bind.baseURL = server.URL
 
 	for attempt := 0; attempt < bindStartPerMinute; attempt++ {
-		response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+		response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 		if err != nil {
 			t.Fatalf("第 %d 次建任务失败：%v", attempt+1, err)
 		}
@@ -233,7 +246,7 @@ func TestRouteBindStartRateLimited(t *testing.T) {
 			t.Fatalf("第 %d 次不该被拒：%+v", attempt+1, response.GetError())
 		}
 	}
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("限流不该返回 error：%v", err)
 	}
@@ -252,7 +265,7 @@ func TestRouteBindStartRateLimited(t *testing.T) {
 func TestRouteBindPollRejections(t *testing.T) {
 	instance := newRouteTestPlugin(t, testConfig(), nil)
 
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, nil))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("缺参数不该返回 error：%v", err)
 	}
@@ -263,7 +276,7 @@ func TestRouteBindPollRejections(t *testing.T) {
 		t.Fatalf("错误码期望 INVALID_ARGUMENT，得到 %+v", detail)
 	}
 
-	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "missing"}))
+	response, err = instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "missing"}, testActorUserID))
 	if err != nil {
 		t.Fatalf("未知任务不该返回 error：%v", err)
 	}
@@ -306,7 +319,7 @@ func TestRouteBindPollDeliversSecretOnce(t *testing.T) {
 	defer server.Close()
 	instance.bind.baseURL = server.URL
 
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "task-once"}))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-once"}, testActorUserID))
 	if err != nil {
 		t.Fatalf("轮询失败：%v", err)
 	}
@@ -321,7 +334,7 @@ func TestRouteBindPollDeliversSecretOnce(t *testing.T) {
 		t.Fatalf("凭据交付后任务应被取走，实际还剩 %d 条", instance.bindStore.Len())
 	}
 
-	response, err = instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "task-once"}))
+	response, err = instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-once"}, testActorUserID))
 	if err != nil {
 		t.Fatalf("二次轮询失败：%v", err)
 	}
@@ -341,7 +354,7 @@ func TestRouteBindPollUpstreamFailure(t *testing.T) {
 	defer server.Close()
 	instance.bind.baseURL = server.URL
 
-	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "task-1"}))
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-1"}, testActorUserID))
 	if err != nil {
 		t.Fatalf("上游失败不该返回 error：%v", err)
 	}
@@ -388,7 +401,7 @@ func TestRouteBindPollConcurrentDeliveryIsExclusive(t *testing.T) {
 		go func() {
 			defer waitGroup.Done()
 			response, invokeErr := instance.InvokeRoute(context.Background(),
-				newRouteRequest(t, routeBindPollID, map[string]any{"taskId": "task-race"}))
+				newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-race"}, testActorUserID))
 			if invokeErr != nil {
 				results <- outcome{status: "error:" + invokeErr.Error()}
 				return
@@ -653,7 +666,7 @@ func TestRouteResponsesAreJSON(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, testCase.routeID, testCase.body))
+			response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, testCase.routeID, testCase.body, testActorUserID))
 			if err != nil {
 				t.Fatalf("调用 %s 失败：%v", testCase.name, err)
 			}
@@ -681,7 +694,7 @@ func TestRouteErrorResponsesAreJSON(t *testing.T) {
 		t.Fatalf("未知路由状态码期望 404，得到 %d", unknown.GetStatusCode())
 	}
 
-	missingTask, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindPollID, nil))
+	missingTask, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindPollID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("缺参数不该返回 error：%v", err)
 	}
@@ -695,7 +708,7 @@ func TestRouteErrorResponsesAreJSON(t *testing.T) {
 	}))
 	defer failingServer.Close()
 	instance.bind.baseURL = failingServer.URL
-	upstream, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeBindStartID, nil))
+	upstream, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
 	if err != nil {
 		t.Fatalf("上游失败不该返回 error：%v", err)
 	}
@@ -712,7 +725,7 @@ func TestRouteBindUnavailable(t *testing.T) {
 	instance.bindStore = nil
 
 	for _, routeID := range []string{routeBindStartID, routeBindPollID} {
-		response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeID, map[string]any{"taskId": "x"}))
+		response, err := instance.InvokeRoute(context.Background(), newRouteRequestAs(t, routeID, map[string]any{"taskId": "x"}, testActorUserID))
 		if err != nil {
 			t.Fatalf("%s 不该返回 error：%v", routeID, err)
 		}
