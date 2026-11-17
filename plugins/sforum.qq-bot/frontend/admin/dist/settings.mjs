@@ -5,13 +5,133 @@ function e(e, t = {}, ...n) {
 	for (let e of n) e != null && e !== !1 && r.append(e instanceof Node ? e : document.createTextNode(String(e)));
 	return r;
 }
+// src/account-card.ts
+var t = {
+	connected: "account.state.connected",
+	connecting: "account.state.connecting",
+	disabled: "account.state.disabled",
+	unauthorized: "account.state.unauthorized",
+	error: "account.state.error"
+}, n = {
+	connected: "qqbot-account__badge--ok",
+	connecting: "qqbot-account__badge--warn",
+	disabled: "qqbot-account__badge--idle",
+	unauthorized: "qqbot-account__badge--bad",
+	error: "qqbot-account__badge--bad"
+};
+function r(e) {
+	return typeof e == "string" ? e.trim() : "";
+}
+function i(e) {
+	return typeof e == "number" && Number.isFinite(e) && e > 0 ? Math.floor(e) : 0;
+}
+function a(e) {
+	return typeof e == "object" && e ? e : {};
+}
+function o(e) {
+	return typeof e == "string" && e in t ? e : "error";
+}
+function s(e) {
+	return Array.from(e)[0] ?? "?";
+}
+function c(c) {
+	let l = "qqbot-account-title", u = e("span", { class: "qqbot-account__avatar" }), d = e("p", { class: "qqbot-account__name" }), f = e("code", { class: "qqbot-account__appid-value" }), p = e("div", { class: "qqbot-account__identity" }, u, e("div", { class: "qqbot-account__ident" }, d, e("p", { class: "qqbot-account__appid" }, e("span", { class: "qqbot-account__appid-label" }, c.t("account.appId")), f))), m = e("span", {
+		class: "qqbot-account__badge",
+		role: "status",
+		"aria-live": "polite"
+	}), h = e("p", { class: "qqbot-account__reason" });
+	h.hidden = !0;
+	let g = e("div", { class: "qqbot-account__status" }, m, h), _ = e("button", {
+		type: "button",
+		class: "qqbot-account__meta"
+	}), v = e("p", { class: "qqbot-account__note" }), y = e("div", { class: "qqbot-account__body" }, p, g), b = e("button", {
+		type: "button",
+		class: "qqbot-btn qqbot-btn--ghost qqbot-account__refresh"
+	}, c.t("account.refresh")), x = e("section", {
+		class: "qqbot-card qqbot-account",
+		"aria-labelledby": l
+	}, e("header", { class: "qqbot-account__header" }, e("h3", {
+		class: "qqbot-card__title",
+		id: l
+	}, c.t("account.title")), b), y, _, v);
+	y.hidden = !0, _.hidden = !0, v.textContent = c.t("account.loading");
+	let S = !1, C = 0, w, T = 0, E = () => {
+		w !== void 0 && (window.clearInterval(w), w = void 0);
+	}, D = () => {
+		E(), w = window.setInterval(() => {
+			document.visibilityState === "visible" && A();
+		}, 3e4);
+	}, O = (t, n) => {
+		let r = () => u.replaceChildren(e("span", {
+			class: "qqbot-account__initial",
+			"aria-hidden": "true"
+		}, s(n)));
+		if (u.replaceChildren(), t === "") {
+			r();
+			return;
+		}
+		let i = e("img", {
+			src: t,
+			alt: n,
+			class: "qqbot-account__avatar-img",
+			loading: "lazy",
+			decoding: "async"
+		});
+		i.addEventListener("error", r, { once: !0 }), u.append(i);
+	}, k = (e, r) => {
+		m.className = "qqbot-account__badge", r ? (m.textContent = c.t(t[e]), m.classList.add(n[e])) : (m.textContent = c.t("account.credentialsMissing"), m.classList.add("qqbot-account__badge--warn"));
+	}, ee = (e) => {
+		let t = a(e?.bot), n = a(e?.gateway), s = a(e?.groups), l = e?.credentialsConfigured === !0, p = r(t.name), m = t.available === !0, g = r(n.reason);
+		u.hidden = !m, d.hidden = !m, m && (d.textContent = p === "" ? c.t("account.noBot") : p, O(r(t.avatarUrl), p)), f.textContent = r(e?.appId), f.parentElement?.classList.toggle("is-empty", f.textContent === ""), k(o(n.state), l), h.textContent = g, h.hidden = g === "";
+		let b = i(s.recognized);
+		T = i(s.whitelisted), _.textContent = c.t("account.groups", {
+			recognized: b,
+			whitelisted: T
+		}), _.disabled = T === 0, _.classList.toggle("qqbot-account__meta--link", T > 0), T > 0 ? _.title = c.t("account.groupsJump") : _.removeAttribute("title"), y.hidden = !1, _.hidden = !1, v.hidden = !0;
+	}, A = async () => {
+		if (S || c.disposed) return;
+		S = !0;
+		let e = ++C;
+		b.disabled = !0, b.textContent = c.t("account.refreshing"), x.setAttribute("aria-busy", "true");
+		try {
+			let t = await c.bridge.request("/account/status", {
+				method: "POST",
+				body: {},
+				responseMode: "body"
+			});
+			if (e !== C || c.disposed) return;
+			ee(t);
+		} catch {
+			if (e !== C || c.disposed) return;
+			v.textContent = c.t("account.unavailable"), v.hidden = !1;
+		} finally {
+			e === C && !c.disposed && (S = !1, b.disabled = !1, b.textContent = c.t("account.refresh"), x.removeAttribute("aria-busy"));
+		}
+	};
+	b.addEventListener("click", () => {
+		A();
+	}), _.addEventListener("click", () => {
+		T !== 0 && c.focus("group_ids");
+	}), c.onSavedChange(() => {
+		A();
+	});
+	let j = () => {
+		document.visibilityState === "visible" ? (D(), A()) : E();
+	};
+	return document.addEventListener("visibilitychange", j), document.visibilityState === "visible" && D(), A(), {
+		root: x,
+		destroy: () => {
+			C += 1, E(), document.removeEventListener("visibilitychange", j), x.remove();
+		}
+	};
+}
 // node_modules/uqr/dist/index.mjs
-var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "Data", e[e.Function = 1] = "Function", e[e.Position = 2] = "Position", e[e.Timing = 3] = "Timing", e[e.Alignment = 4] = "Alignment", e))(t || {}), n = [0, 1], r = [1, 0], i = [2, 3], a = [3, 2], o = {
-	L: n,
-	M: r,
-	Q: i,
-	H: a
-}, s = /^\d*$/, c = /^[A-Z0-9 $%*+./:-]*$/, l = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:", u = 1, d = 40, f = 3, p = 3, m = 40, h = 10, g = [
+var l = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "Data", e[e.Function = 1] = "Function", e[e.Position = 2] = "Position", e[e.Timing = 3] = "Timing", e[e.Alignment = 4] = "Alignment", e))(l || {}), u = [0, 1], d = [1, 0], f = [2, 3], p = [3, 2], m = {
+	L: u,
+	M: d,
+	Q: f,
+	H: p
+}, h = /^\d*$/, g = /^[A-Z0-9 $%*+./:-]*$/, _ = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:", v = 1, y = 40, b = 3, x = 3, S = 40, C = 10, w = [
 	[
 		-1,
 		7,
@@ -184,7 +304,7 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 		30,
 		30
 	]
-], _ = [
+], T = [
 	[
 		-1,
 		1,
@@ -357,9 +477,9 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 		77,
 		81
 	]
-], v = class {
+], E = class {
 	constructor(e, t, n, r) {
-		if (this.version = e, this.ecc = t, e < u || e > d) throw RangeError("Version value out of range");
+		if (this.version = e, this.ecc = t, e < v || e > y) throw RangeError("Version value out of range");
 		if (r < -1 || r > 7) throw RangeError("Mask value out of range");
 		this.size = e * 4 + 17;
 		let i = Array.from({ length: this.size }).fill(!1);
@@ -384,21 +504,21 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 		return e >= 0 && e < this.size && t >= 0 && t < this.size && this.modules[t][e];
 	}
 	drawFunctionPatterns() {
-		for (let e = 0; e < this.size; e++) this.setFunctionModule(6, e, e % 2 == 0, t.Timing), this.setFunctionModule(e, 6, e % 2 == 0, t.Timing);
+		for (let e = 0; e < this.size; e++) this.setFunctionModule(6, e, e % 2 == 0, l.Timing), this.setFunctionModule(e, 6, e % 2 == 0, l.Timing);
 		this.drawFinderPattern(3, 3), this.drawFinderPattern(this.size - 4, 3), this.drawFinderPattern(3, this.size - 4);
-		let e = this.getAlignmentPatternPositions(), n = e.length;
-		for (let t = 0; t < n; t++) for (let r = 0; r < n; r++) t === 0 && r === 0 || t === 0 && r === n - 1 || t === n - 1 && r === 0 || this.drawAlignmentPattern(e[t], e[r]);
+		let e = this.getAlignmentPatternPositions(), t = e.length;
+		for (let n = 0; n < t; n++) for (let r = 0; r < t; r++) n === 0 && r === 0 || n === 0 && r === t - 1 || n === t - 1 && r === 0 || this.drawAlignmentPattern(e[n], e[r]);
 		this.drawFormatBits(0), this.drawVersion();
 	}
 	drawFormatBits(e) {
 		let t = this.ecc[1] << 3 | e, n = t;
 		for (let e = 0; e < 10; e++) n = n << 1 ^ (n >>> 9) * 1335;
 		let r = (t << 10 | n) ^ 21522;
-		for (let e = 0; e <= 5; e++) this.setFunctionModule(8, e, b(r, e));
-		this.setFunctionModule(8, 7, b(r, 6)), this.setFunctionModule(8, 8, b(r, 7)), this.setFunctionModule(7, 8, b(r, 8));
-		for (let e = 9; e < 15; e++) this.setFunctionModule(14 - e, 8, b(r, e));
-		for (let e = 0; e < 8; e++) this.setFunctionModule(this.size - 1 - e, 8, b(r, e));
-		for (let e = 8; e < 15; e++) this.setFunctionModule(8, this.size - 15 + e, b(r, e));
+		for (let e = 0; e <= 5; e++) this.setFunctionModule(8, e, O(r, e));
+		this.setFunctionModule(8, 7, O(r, 6)), this.setFunctionModule(8, 8, O(r, 7)), this.setFunctionModule(7, 8, O(r, 8));
+		for (let e = 9; e < 15; e++) this.setFunctionModule(14 - e, 8, O(r, e));
+		for (let e = 0; e < 8; e++) this.setFunctionModule(this.size - 1 - e, 8, O(r, e));
+		for (let e = 8; e < 15; e++) this.setFunctionModule(8, this.size - 15 + e, O(r, e));
 		this.setFunctionModule(8, this.size - 8, !0);
 	}
 	drawVersion() {
@@ -407,30 +527,30 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 		for (let t = 0; t < 12; t++) e = e << 1 ^ (e >>> 11) * 7973;
 		let t = this.version << 12 | e;
 		for (let e = 0; e < 18; e++) {
-			let n = b(t, e), r = this.size - 11 + e % 3, i = Math.floor(e / 3);
+			let n = O(t, e), r = this.size - 11 + e % 3, i = Math.floor(e / 3);
 			this.setFunctionModule(r, i, n), this.setFunctionModule(i, r, n);
 		}
 	}
-	drawFinderPattern(e, n) {
-		for (let r = -4; r <= 4; r++) for (let i = -4; i <= 4; i++) {
-			let a = Math.max(Math.abs(i), Math.abs(r)), o = e + i, s = n + r;
-			o >= 0 && o < this.size && s >= 0 && s < this.size && this.setFunctionModule(o, s, a !== 2 && a !== 4, t.Position);
+	drawFinderPattern(e, t) {
+		for (let n = -4; n <= 4; n++) for (let r = -4; r <= 4; r++) {
+			let i = Math.max(Math.abs(r), Math.abs(n)), a = e + r, o = t + n;
+			a >= 0 && a < this.size && o >= 0 && o < this.size && this.setFunctionModule(a, o, i !== 2 && i !== 4, l.Position);
 		}
 	}
-	drawAlignmentPattern(e, n) {
-		for (let r = -2; r <= 2; r++) for (let i = -2; i <= 2; i++) this.setFunctionModule(e + i, n + r, Math.max(Math.abs(i), Math.abs(r)) !== 1, t.Alignment);
+	drawAlignmentPattern(e, t) {
+		for (let n = -2; n <= 2; n++) for (let r = -2; r <= 2; r++) this.setFunctionModule(e + r, t + n, Math.max(Math.abs(r), Math.abs(n)) !== 1, l.Alignment);
 	}
-	setFunctionModule(e, n, r, i = t.Function) {
-		this.modules[n][e] = r, this.types[n][e] = i;
+	setFunctionModule(e, t, n, r = l.Function) {
+		this.modules[t][e] = n, this.types[t][e] = r;
 	}
 	addEccAndInterleave(e) {
 		let t = this.version, n = this.ecc;
-		if (e.length !== N(t, n)) throw RangeError("Invalid argument");
-		let r = _[n[0]][t], i = g[n[0]][t], a = Math.floor(M(t) / 8), o = r - a % r, s = Math.floor(a / r), c = [], l = ne(i);
+		if (e.length !== L(t, n)) throw RangeError("Invalid argument");
+		let r = T[n[0]][t], i = w[n[0]][t], a = Math.floor(I(t) / 8), o = r - a % r, s = Math.floor(a / r), c = [], l = oe(i);
 		for (let t = 0, n = 0; t < r; t++) {
 			let r = e.slice(n, n + s - i + (t < o ? 0 : 1));
 			n += r.length;
-			let a = re(r, l);
+			let a = se(r, l);
 			t < o && r.push(0), c.push(r.concat(a));
 		}
 		let u = [];
@@ -440,13 +560,13 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 		return u;
 	}
 	drawCodewords(e) {
-		if (e.length !== Math.floor(M(this.version) / 8)) throw RangeError("Invalid argument");
+		if (e.length !== Math.floor(I(this.version) / 8)) throw RangeError("Invalid argument");
 		let t = 0;
 		for (let n = this.size - 1; n >= 1; n -= 2) {
 			n === 6 && (n = 5);
 			for (let r = 0; r < this.size; r++) for (let i = 0; i < 2; i++) {
 				let a = n - i, o = n + 1 & 2 ? r : this.size - 1 - r;
-				!this.types[o][a] && t < e.length * 8 && (this.modules[o][a] = b(e[t >>> 3], 7 - (t & 7)), t++);
+				!this.types[o][a] && t < e.length * 8 && (this.modules[o][a] = O(e[t >>> 3], 7 - (t & 7)), t++);
 			}
 		}
 	}
@@ -496,8 +616,8 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 				0,
 				0
 			];
-			for (let a = 0; a < this.size; a++) this.modules[t][a] === n ? (r++, r === 5 ? e += f : r > 5 && e++) : (this.finderPenaltyAddHistory(r, i), n || (e += this.finderPenaltyCountPatterns(i) * m), n = this.modules[t][a], r = 1);
-			e += this.finderPenaltyTerminateAndCount(n, r, i) * m;
+			for (let a = 0; a < this.size; a++) this.modules[t][a] === n ? (r++, r === 5 ? e += b : r > 5 && e++) : (this.finderPenaltyAddHistory(r, i), n || (e += this.finderPenaltyCountPatterns(i) * S), n = this.modules[t][a], r = 1);
+			e += this.finderPenaltyTerminateAndCount(n, r, i) * S;
 		}
 		for (let t = 0; t < this.size; t++) {
 			let n = !1, r = 0, i = [
@@ -509,17 +629,17 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 				0,
 				0
 			];
-			for (let a = 0; a < this.size; a++) this.modules[a][t] === n ? (r++, r === 5 ? e += f : r > 5 && e++) : (this.finderPenaltyAddHistory(r, i), n || (e += this.finderPenaltyCountPatterns(i) * m), n = this.modules[a][t], r = 1);
-			e += this.finderPenaltyTerminateAndCount(n, r, i) * m;
+			for (let a = 0; a < this.size; a++) this.modules[a][t] === n ? (r++, r === 5 ? e += b : r > 5 && e++) : (this.finderPenaltyAddHistory(r, i), n || (e += this.finderPenaltyCountPatterns(i) * S), n = this.modules[a][t], r = 1);
+			e += this.finderPenaltyTerminateAndCount(n, r, i) * S;
 		}
 		for (let t = 0; t < this.size - 1; t++) for (let n = 0; n < this.size - 1; n++) {
 			let r = this.modules[t][n];
-			r === this.modules[t][n + 1] && r === this.modules[t + 1][n] && r === this.modules[t + 1][n + 1] && (e += p);
+			r === this.modules[t][n + 1] && r === this.modules[t + 1][n] && r === this.modules[t + 1][n + 1] && (e += x);
 		}
 		let t = 0;
 		for (let e of this.modules) t = e.reduce((e, t) => e + +!!t, t);
 		let n = this.size * this.size, r = Math.ceil(Math.abs(t * 20 - n * 10) / n) - 1;
-		return e += r * h, e;
+		return e += r * C, e;
 	}
 	getAlignmentPatternPositions() {
 		if (this.version === 1) return [];
@@ -540,14 +660,14 @@ var t = /* @__PURE__ */ ((e) => (e[e.Border = -1] = "Border", e[e.Data = 0] = "D
 		t[0] === 0 && (e += this.size), t.pop(), t.unshift(e);
 	}
 };
-function y(e, t, n) {
+function D(e, t, n) {
 	if (t < 0 || t > 31 || e >>> t) throw RangeError("Value out of range");
 	for (let r = t - 1; r >= 0; r--) n.push(e >>> r & 1);
 }
-function b(e, t) {
+function O(e, t) {
 	return !!(e >>> t & 1);
 }
-var x = class {
+var k = class {
 	constructor(e, t, n) {
 		if (this.mode = e, this.numChars = t, this.bitData = n, t < 0) throw RangeError("Invalid argument");
 		this.bitData = n.slice();
@@ -555,74 +675,74 @@ var x = class {
 	getData() {
 		return this.bitData.slice();
 	}
-}, S = [
+}, ee = [
 	1,
 	10,
 	12,
 	14
-], C = [
+], A = [
 	2,
 	9,
 	11,
 	13
-], w = [
+], j = [
 	4,
 	8,
 	16,
 	16
 ];
-function T(e, t) {
+function M(e, t) {
 	return e[Math.floor((t + 7) / 17) + 1];
 }
-function E(e) {
+function N(e) {
 	let t = [];
-	for (let n of e) y(n, 8, t);
-	return new x(w, e.length, t);
+	for (let n of e) D(n, 8, t);
+	return new k(j, e.length, t);
 }
-function D(e) {
-	if (!A(e)) throw RangeError("String contains non-numeric characters");
+function te(e) {
+	if (!P(e)) throw RangeError("String contains non-numeric characters");
 	let t = [];
 	for (let n = 0; n < e.length;) {
 		let r = Math.min(e.length - n, 3);
-		y(Number.parseInt(e.substring(n, n + r), 10), r * 3 + 1, t), n += r;
+		D(Number.parseInt(e.substring(n, n + r), 10), r * 3 + 1, t), n += r;
 	}
-	return new x(S, e.length, t);
+	return new k(ee, e.length, t);
 }
-function O(e) {
-	if (!j(e)) throw RangeError("String contains unencodable characters in alphanumeric mode");
+function ne(e) {
+	if (!F(e)) throw RangeError("String contains unencodable characters in alphanumeric mode");
 	let t = [], n = 0;
 	for (; n + 2 <= e.length; n += 2) {
-		let r = l.indexOf(e.charAt(n)) * 45;
-		r += l.indexOf(e.charAt(n + 1)), y(r, 11, t);
+		let r = _.indexOf(e.charAt(n)) * 45;
+		r += _.indexOf(e.charAt(n + 1)), D(r, 11, t);
 	}
-	return n < e.length && y(l.indexOf(e.charAt(n)), 6, t), new x(C, e.length, t);
+	return n < e.length && D(_.indexOf(e.charAt(n)), 6, t), new k(A, e.length, t);
 }
-function k(e) {
-	return e === "" ? [] : A(e) ? [D(e)] : j(e) ? [O(e)] : [E(te(e))];
+function re(e) {
+	return e === "" ? [] : P(e) ? [te(e)] : F(e) ? [ne(e)] : [N(ae(e))];
 }
-function A(e) {
-	return s.test(e);
+function P(e) {
+	return h.test(e);
 }
-function j(e) {
-	return c.test(e);
+function F(e) {
+	return g.test(e);
 }
-function ee(e, t) {
+function ie(e, t) {
 	let n = 0;
 	for (let r of e) {
-		let e = T(r.mode, t);
+		let e = M(r.mode, t);
 		if (r.numChars >= 1 << e) return Infinity;
 		n += 4 + e + r.bitData.length;
 	}
 	return n;
 }
-function te(e) {
+function ae(e) {
 	e = encodeURI(e);
 	let t = [];
 	for (let n = 0; n < e.length; n++) e.charAt(n) === "%" ? (t.push(Number.parseInt(e.substring(n + 1, n + 3), 16)), n += 2) : t.push(e.charCodeAt(n));
 	return t;
 }
-function M(e) {
-	if (e < u || e > d) throw RangeError("Version number out of range");
+function I(e) {
+	if (e < v || e > y) throw RangeError("Version number out of range");
 	let t = (16 * e + 128) * e + 64;
 	if (e >= 2) {
 		let n = Math.floor(e / 7) + 2;
@@ -630,104 +750,104 @@ function M(e) {
 	}
 	return t;
 }
-function N(e, t) {
-	return Math.floor(M(e) / 8) - g[t[0]][e] * _[t[0]][e];
+function L(e, t) {
+	return Math.floor(I(e) / 8) - w[t[0]][e] * T[t[0]][e];
 }
-function ne(e) {
+function oe(e) {
 	if (e < 1 || e > 255) throw RangeError("Degree out of range");
 	let t = [];
 	for (let n = 0; n < e - 1; n++) t.push(0);
 	t.push(1);
 	let n = 1;
 	for (let r = 0; r < e; r++) {
-		for (let e = 0; e < t.length; e++) t[e] = P(t[e], n), e + 1 < t.length && (t[e] ^= t[e + 1]);
-		n = P(n, 2);
+		for (let e = 0; e < t.length; e++) t[e] = R(t[e], n), e + 1 < t.length && (t[e] ^= t[e + 1]);
+		n = R(n, 2);
 	}
 	return t;
 }
-function re(e, t) {
+function se(e, t) {
 	let n = t.map((e) => 0);
 	for (let r of e) {
 		let e = r ^ n.shift();
-		n.push(0), t.forEach((t, r) => n[r] ^= P(t, e));
+		n.push(0), t.forEach((t, r) => n[r] ^= R(t, e));
 	}
 	return n;
 }
-function P(e, t) {
+function R(e, t) {
 	if (e >>> 8 || t >>> 8) throw RangeError("Byte out of range");
 	let n = 0;
 	for (let r = 7; r >= 0; r--) n = n << 1 ^ (n >>> 7) * 285, n ^= (t >>> r & 1) * e;
 	return n;
 }
-function ie(e, t, n = 1, o = 40, s = -1, c = !0) {
-	if (!(u <= n && n <= o && o <= d) || s < -1 || s > 7) throw RangeError("Invalid value");
-	let l, f;
-	for (l = n;; l++) {
-		let n = N(l, t) * 8, r = ee(e, l);
-		if (r <= n) {
-			f = r;
+function ce(e, t, n = 1, r = 40, i = -1, a = !0) {
+	if (!(v <= n && n <= r && r <= y) || i < -1 || i > 7) throw RangeError("Invalid value");
+	let o, s;
+	for (o = n;; o++) {
+		let n = L(o, t) * 8, i = ie(e, o);
+		if (i <= n) {
+			s = i;
 			break;
 		}
-		if (l >= o) throw RangeError("Data too long");
+		if (o >= r) throw RangeError("Data too long");
 	}
 	for (let e of [
-		r,
-		i,
-		a
-	]) c && f <= N(l, e) * 8 && (t = e);
-	let p = [];
+		d,
+		f,
+		p
+	]) a && s <= L(o, e) * 8 && (t = e);
+	let c = [];
 	for (let t of e) {
-		y(t.mode[0], 4, p), y(t.numChars, T(t.mode, l), p);
-		for (let e of t.getData()) p.push(e);
+		D(t.mode[0], 4, c), D(t.numChars, M(t.mode, o), c);
+		for (let e of t.getData()) c.push(e);
 	}
-	let m = N(l, t) * 8;
-	y(0, Math.min(4, m - p.length), p), y(0, (8 - p.length % 8) % 8, p);
-	for (let e = 236; p.length < m; e ^= 253) y(e, 8, p);
-	let h = Array.from({ length: Math.ceil(p.length / 8) }, () => 0);
-	return p.forEach((e, t) => h[t >>> 3] |= e << 7 - (t & 7)), new v(l, t, h, s);
+	let l = L(o, t) * 8;
+	D(0, Math.min(4, l - c.length), c), D(0, (8 - c.length % 8) % 8, c);
+	for (let e = 236; c.length < l; e ^= 253) D(e, 8, c);
+	let u = Array.from({ length: Math.ceil(c.length / 8) }, () => 0);
+	return c.forEach((e, t) => u[t >>> 3] |= e << 7 - (t & 7)), new E(o, t, u, i);
 }
-function ae(e, t) {
-	let { ecc: n = "L", boostEcc: r = !1, minVersion: i = 1, maxVersion: a = 40, maskPattern: s = -1, border: c = 1 } = t || {}, l = typeof e == "string" ? k(e) : Array.isArray(e) ? [E(e)] : void 0;
-	if (!l) throw Error(`uqr only supports encoding string and binary data, but got: ${typeof e}`);
-	let u = ie(l, o[n], i, a, s, r), d = oe({
-		version: u.version,
-		maskPattern: u.mask,
-		size: u.size,
-		data: u.modules,
-		types: u.types
-	}, c);
-	return t?.invert && (d.data = d.data.map((e) => e.map((e) => !e))), t?.onEncoded?.(d), d;
+function le(e, t) {
+	let { ecc: n = "L", boostEcc: r = !1, minVersion: i = 1, maxVersion: a = 40, maskPattern: o = -1, border: s = 1 } = t || {}, c = typeof e == "string" ? re(e) : Array.isArray(e) ? [N(e)] : void 0;
+	if (!c) throw Error(`uqr only supports encoding string and binary data, but got: ${typeof e}`);
+	let l = ce(c, m[n], i, a, o, r), u = ue({
+		version: l.version,
+		maskPattern: l.mask,
+		size: l.size,
+		data: l.modules,
+		types: l.types
+	}, s);
+	return t?.invert && (u.data = u.data.map((e) => e.map((e) => !e))), t?.onEncoded?.(u), u;
 }
-function oe(e, n = 1) {
-	if (!n) return e;
-	let { size: r } = e, i = r + n * 2;
-	e.size = i, e.data.forEach((e) => {
-		for (let t = 0; t < n; t++) e.unshift(!1), e.push(!1);
+function ue(e, t = 1) {
+	if (!t) return e;
+	let { size: n } = e, r = n + t * 2;
+	e.size = r, e.data.forEach((e) => {
+		for (let n = 0; n < t; n++) e.unshift(!1), e.push(!1);
 	});
-	for (let t = 0; t < n; t++) e.data.unshift(Array.from({ length: i }, (e) => !1)), e.data.push(Array.from({ length: i }, (e) => !1));
-	let a = t.Border;
+	for (let n = 0; n < t; n++) e.data.unshift(Array.from({ length: r }, (e) => !1)), e.data.push(Array.from({ length: r }, (e) => !1));
+	let i = l.Border;
 	e.types.forEach((e) => {
-		for (let t = 0; t < n; t++) e.unshift(a), e.push(a);
+		for (let n = 0; n < t; n++) e.unshift(i), e.push(i);
 	});
-	for (let t = 0; t < n; t++) e.types.unshift(Array.from({ length: i }, (e) => a)), e.types.push(Array.from({ length: i }, (e) => a));
+	for (let n = 0; n < t; n++) e.types.unshift(Array.from({ length: r }, (e) => i)), e.types.push(Array.from({ length: r }, (e) => i));
 	return e;
 }
-function F(e) {
+function z(e) {
 	return e.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-function se(e, t = {}) {
-	let n = ae(e, t), { pixelSize: r = 10, whiteColor: i = "white", blackColor: a = "black" } = t, o = n.size * r, s = n.size * r, c = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${s} ${o}">`, l = [];
+function de(e, t = {}) {
+	let n = le(e, t), { pixelSize: r = 10, whiteColor: i = "white", blackColor: a = "black" } = t, o = n.size * r, s = n.size * r, c = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${s} ${o}">`, l = [];
 	for (let e = 0; e < n.size; e++) for (let t = 0; t < n.size; t++) {
 		let i = t * r, a = e * r;
 		n.data[e][t] && l.push(`M${i},${a}h${r}v${r}h-${r}z`);
 	}
-	return c += `<rect fill="${F(i)}" width="${s}" height="${o}"/>`, c += `<path fill="${F(a)}" d="${l.join("")}"/>`, c += "</svg>", c;
+	return c += `<rect fill="${z(i)}" width="${s}" height="${o}"/>`, c += `<path fill="${z(a)}" d="${l.join("")}"/>`, c += "</svg>", c;
 }
 // src/bind-card.ts
-var ce = 1500, le = 500, ue = 300, de = 3;
-function fe(e) {
+var fe = 1500, pe = 500, me = 300, he = 3;
+function ge(e) {
 	try {
-		let t = se(e, {
+		let t = de(e, {
 			ecc: "M",
 			border: 2,
 			pixelSize: 4,
@@ -739,11 +859,11 @@ function fe(e) {
 		return null;
 	}
 }
-function pe(e) {
+function _e(e) {
 	let t = Math.max(0, Math.floor(e)), n = Math.floor(t / 60);
 	return `${String(n).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 }
-function me(t) {
+function ve(t) {
 	let n = "qqbot-bind-title", r = e("div", { class: "qqbot-bind__body" }), i = e("p", {
 		class: "qqbot-live",
 		role: "status",
@@ -757,7 +877,7 @@ function me(t) {
 	}, t.t("bind.title")), e("p", { class: "qqbot-card__hint" }, t.t("bind.hint"))), r, i), o = t.getValue("app_id") !== "" || t.secretSaved ? "ready" : "idle", s = t.getValue("app_id"), c = "", l = "", u = 0, d = 0, f = 0, p, m, h = null, g = null, _ = () => {
 		p !== void 0 && window.clearInterval(p), m !== void 0 && window.clearInterval(m), p = void 0, m = void 0, h = null;
 	}, v = () => {
-		h && (h.textContent = t.t("bind.expires", { time: pe((u - Date.now()) / 1e3) }));
+		h && (h.textContent = t.t("bind.expires", { time: _e((u - Date.now()) / 1e3) }));
 	}, y = (t, n, r) => {
 		let i = e("button", {
 			type: "button",
@@ -807,7 +927,7 @@ function me(t) {
 		r.replaceChildren(...n), c && c.focus();
 	}, S = (e) => {
 		let t = typeof e == "number" ? e : Number(e);
-		return Number.isFinite(t) && t > 0 ? t : ue;
+		return Number.isFinite(t) && t > 0 ? t : me;
 	}, C = () => {
 		_(), o = "expired", x();
 	}, w = async (e, n) => {
@@ -834,7 +954,7 @@ function me(t) {
 			});
 		} catch {
 			if (e !== d || t.disposed) return;
-			f += 1, f >= de && (o = "error", x());
+			f += 1, f >= he && (o = "error", x());
 			return;
 		}
 		if (e !== d || t.disposed) return;
@@ -856,11 +976,11 @@ function me(t) {
 				o = "error", x();
 				return;
 			}
-			c = r, l = i, u = Date.now() + S(n.expiresInSeconds) * 1e3, g = fe(l), o = "waiting", x(), m = window.setInterval(() => {
+			c = r, l = i, u = Date.now() + S(n.expiresInSeconds) * 1e3, g = ge(l), o = "waiting", x(), m = window.setInterval(() => {
 				o === "waiting" && (Date.now() >= u ? C() : v());
-			}, le), p = window.setInterval(() => {
+			}, pe), p = window.setInterval(() => {
 				T(e);
-			}, ce);
+			}, fe);
 		} catch {
 			if (e !== d || t.disposed) return;
 			o = "error", x();
@@ -874,14 +994,14 @@ function me(t) {
 	};
 }
 // src/footer.ts
-var he = 4e3;
-function I(e) {
+var ye = 4e3;
+function B(e) {
 	return (/* @__PURE__ */ new Date()).toLocaleTimeString(e.zh ? "zh-CN" : "en-US", {
 		hour: "2-digit",
 		minute: "2-digit"
 	});
 }
-function ge(t) {
+function be(t) {
 	let n = "qqbot-footer-title", r = e("pre", { class: "qqbot-output" });
 	r.hidden = !0;
 	let i = e("p", {
@@ -918,13 +1038,13 @@ function ge(t) {
 		c !== void 0 && window.clearTimeout(c), c = void 0, s = !1, m();
 	};
 	function v() {
-		o || (s ? b() : (s = !0, m(), c = window.setTimeout(_, he)));
+		o || (s ? b() : (s = !0, m(), c = window.setTimeout(_, ye)));
 	}
 	async function y() {
 		if (!o) {
 			o = "save", m();
 			try {
-				await t.bridge.settings.save(), t.syncFromBridge(), i.textContent = `${t.t("footer.savedAt", { time: I(t) })}`;
+				await t.bridge.settings.save(), t.syncFromBridge(), i.textContent = `${t.t("footer.savedAt", { time: B(t) })}`;
 			} catch {
 				g(t.t("error.generic"), "bad"), i.textContent = t.t("error.generic");
 			} finally {
@@ -936,7 +1056,7 @@ function ge(t) {
 		if (!o) {
 			_(), o = "reset", m();
 			try {
-				await t.bridge.settings.reset(), t.syncFromBridge(), i.textContent = t.t("footer.resetDone", { time: I(t) });
+				await t.bridge.settings.reset(), t.syncFromBridge(), i.textContent = t.t("footer.resetDone", { time: B(t) });
 			} catch {
 				g(t.t("error.generic"), "bad"), i.textContent = t.t("error.generic");
 			} finally {
@@ -984,11 +1104,11 @@ function ge(t) {
 	};
 }
 // src/form.ts
-var _e = {
+var xe = {
 	group_ids: 4,
 	category_filter: 4,
 	message_template: 10
-}, ve = {
+}, Se = {
 	excerpt_limit: {
 		min: 0,
 		max: 5e3,
@@ -1020,16 +1140,16 @@ var _e = {
 		step: 1
 	}
 };
-function L(e) {
+function V(e) {
 	return e instanceof HTMLInputElement && e.type === "checkbox" ? e.checked ? "true" : "false" : e.value;
 }
-function R(t, n) {
+function H(t, n) {
 	return t.description ? e("p", {
 		class: "qqbot-field__desc",
 		id: n
 	}, t.description) : null;
 }
-function z(t, n) {
+function U(t, n) {
 	let r = t.item(n);
 	if (!r) return null;
 	let i = `sforum-qqbot-${n}`, a = `${i}-desc`, o = r.description ? { "aria-describedby": a } : {};
@@ -1046,8 +1166,8 @@ function z(t, n) {
 		}, e("label", {
 			class: "qqbot-check",
 			for: i
-		}, s, e("span", {}, r.label || n)), R(r, a));
-		return t.registerControl(n, s, () => L(s)), {
+		}, s, e("span", {}, r.label || n)), H(r, a));
+		return t.registerControl(n, s, () => V(s)), {
 			root: c,
 			control: s,
 			item: r
@@ -1070,7 +1190,7 @@ function z(t, n) {
 	} else if (r.type === "textarea") {
 		let a = e("textarea", {
 			id: i,
-			rows: _e[n] ?? 3,
+			rows: xe[n] ?? 3,
 			class: n === "message_template" ? "qqbot-input qqbot-input--mono" : "qqbot-input",
 			placeholder: r.placeholder || "",
 			spellcheck: "false",
@@ -1078,7 +1198,7 @@ function z(t, n) {
 		});
 		a.value = t.getValue(n), s = a;
 	} else if (r.type === "number") {
-		let r = ve[n], a = e("input", {
+		let r = Se[n], a = e("input", {
 			type: "number",
 			id: i,
 			class: "qqbot-input",
@@ -1118,23 +1238,23 @@ function z(t, n) {
 	}, e("div", { class: "qqbot-field__head" }, e("label", {
 		class: "qqbot-field__label",
 		for: i
-	}, r.label || n), l), s, c, R(r, a));
+	}, r.label || n), l), s, c, H(r, a));
 	if (r.type === "secret") {
 		let e = s;
 		t.onSecretSavedChange(() => {
 			e.placeholder = t.secretSaved ? t.t("field.keepSecret") : t.t("field.secretPlaceholder"), l && (l.hidden = !t.secretSaved);
 		});
 	}
-	return t.registerControl(n, s, () => L(s)), {
+	return t.registerControl(n, s, () => V(s)), {
 		root: u,
 		control: s,
 		item: r
 	};
 }
-function B(t, n) {
+function W(t, n) {
 	let r = `qqbot-section-${n.id}`, i = e("div", { class: "qqbot-grid" });
 	for (let e of n.keys) {
-		let n = z(t, e);
+		let n = U(t, e);
 		n && i.append(n.root);
 	}
 	return e("section", {
@@ -1146,32 +1266,32 @@ function B(t, n) {
 	}, n.title), n.hint ? e("p", { class: "qqbot-card__hint" }, n.hint) : null), i);
 }
 // src/groups-card.ts
-var V = "group_ids", ye = 6, be = {
+var G = "group_ids", Ce = 6, we = {
 	year: "numeric",
 	month: "2-digit",
 	day: "2-digit",
 	hour: "2-digit",
 	minute: "2-digit"
 };
-function H(e) {
+function K(e) {
 	return typeof e == "string" ? e : "";
 }
-function U(e) {
+function q(e) {
 	return typeof e == "number" && Number.isFinite(e) && e > 0 ? Math.floor(e) : 0;
 }
-function W(e) {
+function J(e) {
 	return e.split(",").map((e) => e.trim());
 }
-function G(e, t) {
-	return e.split("\n").some((e) => W(e).some((e) => e === t));
+function Y(e, t) {
+	return e.split("\n").some((e) => J(e).some((e) => e === t));
 }
-function xe(e, t) {
+function Te(e, t) {
 	return `${e}${e === "" || e.endsWith("\n") ? "" : "\n"}${t}`;
 }
-function Se(e, t) {
+function Ee(e, t) {
 	let n = [];
 	for (let r of e.split("\n")) {
-		let e = W(r);
+		let e = J(r);
 		if (!e.some((e) => e === t)) {
 			n.push(r);
 			continue;
@@ -1182,26 +1302,26 @@ function Se(e, t) {
 	let r = n.join("\n");
 	return e.endsWith("\n") && r !== "" && !r.endsWith("\n") ? `${r}\n` : r;
 }
-function Ce(e) {
+function De(e) {
 	if (!Array.isArray(e)) return [];
 	let t = [];
 	for (let n of e) {
 		if (!n || typeof n != "object") continue;
-		let e = n, r = H(e.openid).trim();
+		let e = n, r = K(e.openid).trim();
 		if (r === "") continue;
-		let i = H(e.name).trim(), a = H(e.lastSeenAt), o = Date.parse(a);
+		let i = K(e.name).trim(), a = K(e.lastSeenAt), o = Date.parse(a);
 		t.push({
 			openid: r,
 			name: i,
 			nameUnavailable: e.nameUnavailable === !0,
-			count: U(e.count),
+			count: q(e.count),
 			lastSeen: Number.isFinite(o) ? o : -Infinity,
 			lastSeenText: a
 		});
 	}
 	return t.sort((e, t) => t.lastSeen - e.lastSeen);
 }
-function we(t) {
+function Oe(t) {
 	let n = "qqbot-groups-title", r = e("p", {
 		class: "qqbot-groups__status",
 		role: "status",
@@ -1225,14 +1345,14 @@ function we(t) {
 	}, f = (e) => {
 		r.textContent = e;
 	}, p = () => {
-		let e = t.getValue(V);
-		for (let [t, n] of c) n.checked = G(e, t);
+		let e = t.getValue(G);
+		for (let [t, n] of c) n.checked = Y(e, t);
 	}, m = (e, n) => {
-		let r = t.getValue(V);
-		t.setValue(V, n.checked ? xe(r, e) : Se(r, e)), p();
-	}, h = (e) => e.name !== "" && !e.nameUnavailable ? e.name : `${e.openid.slice(0, ye)}…`, g = (e) => {
+		let r = t.getValue(G);
+		t.setValue(G, n.checked ? Te(r, e) : Ee(r, e)), p();
+	}, h = (e) => e.name !== "" && !e.nameUnavailable ? e.name : `${e.openid.slice(0, Ce)}…`, g = (e) => {
 		let n = Date.parse(e.lastSeenText);
-		return Number.isFinite(n) ? new Date(n).toLocaleString(t.zh ? "zh-CN" : "en-US", be) : e.lastSeenText;
+		return Number.isFinite(n) ? new Date(n).toLocaleString(t.zh ? "zh-CN" : "en-US", we) : e.lastSeenText;
 	}, _ = (n) => {
 		c.clear(), a.replaceChildren(), n.forEach((n, r) => {
 			let i = `qqbot-group-${r}`, o = e("input", {
@@ -1240,7 +1360,7 @@ function we(t) {
 				id: i,
 				class: "qqbot-groups__box"
 			});
-			o.checked = G(t.getValue(V), n.openid), o.addEventListener("change", () => m(n.openid, o)), c.set(n.openid, o), a.append(e("li", { class: "qqbot-groups__row" }, o, e("label", {
+			o.checked = Y(t.getValue(G), n.openid), o.addEventListener("change", () => m(n.openid, o)), c.set(n.openid, o), a.append(e("li", { class: "qqbot-groups__row" }, o, e("label", {
 				class: "qqbot-groups__label",
 				for: i
 			}, e("span", {
@@ -1252,7 +1372,7 @@ function we(t) {
 			})))));
 		}), a.hidden = n.length === 0;
 	}, v = (e) => {
-		let n = Ce(e?.groups), r = e?.claimEnabled !== !1, i = U(e?.recordingLimit);
+		let n = De(e?.groups), r = e?.claimEnabled !== !1, i = q(e?.recordingLimit);
 		_(n), r ? n.length === 0 ? d(t.t("groups.empty")) : i > 0 && n.length >= i ? d(t.t("groups.limit", { n: i })) : d("") : d(t.t("groups.claimOff")), f(t.t("groups.updated", { n: n.length }));
 	}, y = () => {
 		c.clear(), a.replaceChildren(), a.hidden = !0, d(t.t("groups.unavailable")), f(t.t("groups.unavailable"));
@@ -1278,7 +1398,7 @@ function we(t) {
 	};
 	return o.addEventListener("click", () => {
 		b();
-	}), t.onInput([V], p), b(), {
+	}), t.onInput([G], p), b(), {
 		root: s,
 		destroy: () => {
 			u += 1, c.clear(), s.remove();
@@ -1286,7 +1406,22 @@ function we(t) {
 	};
 }
 // src/i18n.ts
-var Te = {
+var ke = {
+	"account.title": "当前账号",
+	"account.refresh": "刷新",
+	"account.refreshing": "刷新中…",
+	"account.loading": "正在读取…",
+	"account.unavailable": "状态暂不可用",
+	"account.noBot": "未获取到机器人信息",
+	"account.appId": "AppID",
+	"account.credentialsMissing": "尚未配置凭据",
+	"account.state.connected": "已连接",
+	"account.state.connecting": "连接中",
+	"account.state.disabled": "未启用",
+	"account.state.unauthorized": "授权失败",
+	"account.state.error": "连接异常",
+	"account.groups": "已识别群 {recognized} · 白名单 {whitelisted}",
+	"account.groupsJump": "跳到群 ID 列表",
 	"bind.title": "绑定 QQ 机器人",
 	"bind.hint": "用手机 QQ 扫码，AppID 与 AppSecret 会自动填好并保存；也可以手动填写。",
 	"bind.start": "扫码绑定",
@@ -1382,7 +1517,22 @@ var Te = {
 	"error.serviceDetail": "后端可能刚重启或返回了错误；稍后再试，原始错误不会显示在这里。",
 	"error.generic": "操作没有成功，请重试。",
 	"error.saveFailed": "扫码成功，但自动保存没有生效，请检查后在页面底部手动保存。"
-}, Ee = {
+}, Ae = {
+	"account.title": "Current account",
+	"account.refresh": "Refresh",
+	"account.refreshing": "Refreshing…",
+	"account.loading": "Reading…",
+	"account.unavailable": "Status unavailable",
+	"account.noBot": "Bot information unavailable",
+	"account.appId": "AppID",
+	"account.credentialsMissing": "Credentials not configured",
+	"account.state.connected": "Connected",
+	"account.state.connecting": "Connecting",
+	"account.state.disabled": "Disabled",
+	"account.state.unauthorized": "Unauthorized",
+	"account.state.error": "Connection error",
+	"account.groups": "{recognized} recognized · {whitelisted} whitelisted",
+	"account.groupsJump": "Jump to the group ID list",
 	"bind.title": "Connect the QQ bot",
 	"bind.hint": "Scan with mobile QQ and AppID plus AppSecret are filled in and saved for you. You can also type them by hand.",
 	"bind.start": "Scan to connect",
@@ -1479,8 +1629,8 @@ var Te = {
 	"error.generic": "That did not work. Please try again.",
 	"error.saveFailed": "Scanned, but the automatic save did not take effect. Check the form and save it at the bottom of the page."
 };
-function De(e) {
-	let t = (e || "").toLowerCase().startsWith("zh"), n = t ? Te : Ee;
+function je(e) {
+	let t = (e || "").toLowerCase().startsWith("zh"), n = t ? ke : Ae;
 	return {
 		zh: t,
 		t: (e, t) => {
@@ -1491,7 +1641,7 @@ function De(e) {
 	};
 }
 // src/template.ts
-var Oe = [
+var Me = [
 	{
 		token: "title",
 		alias: "标题"
@@ -1528,13 +1678,13 @@ var Oe = [
 		token: "signature",
 		alias: "签名"
 	}
-], K = [
+], X = [
 	"message_template",
 	"message_format",
 	"signature",
 	"excerpt_limit",
 	"max_message_chars"
-], ke = 300, Ae = [
+], Ne = 300, Pe = [
 	{
 		label: "template.presetDefault",
 		text: null
@@ -1547,7 +1697,7 @@ var Oe = [
 		label: "template.presetNotice",
 		text: "【社区公告】{{title}}\n\n{{excerpt}}\n\n分类：{{category}}｜作者：{{author}}\n详情：{{url}}\n{{signature}}"
 	}
-], q = [
+], Z = [
 	{
 		token: "title",
 		label: "template.sampleTitle"
@@ -1569,34 +1719,34 @@ var Oe = [
 		label: "template.sampleUrl"
 	}
 ];
-function J(e) {
+function Q(e) {
 	if (e.trim() === "") return;
 	let t = Number.parseInt(e, 10);
 	return Number.isFinite(t) ? t : void 0;
 }
-function Y(e) {
+function $(e) {
 	return typeof e == "string" ? e : typeof e == "number" && Number.isFinite(e) ? String(e) : null;
 }
-function je(e, t) {
+function Fe(e, t) {
 	let n = document.activeElement === e, r = n ? e.selectionStart ?? e.value.length : e.value.length, i = n ? e.selectionEnd ?? r : r;
 	e.value = `${e.value.slice(0, r)}${t}${e.value.slice(i)}`, e.dispatchEvent(new Event("input", { bubbles: !0 }));
 	let a = r + t.length;
 	e.focus(), e.setSelectionRange(a, a);
 }
-function Me(t, n) {
+function Ie(t, n) {
 	let r = e("div", { class: "qqbot-chips" });
-	for (let i of Oe) {
+	for (let i of Me) {
 		let a = `{{${i.token}}}`, o = e("button", {
 			type: "button",
 			class: "qqbot-chip",
 			title: t.zh ? `${a} / {{${i.alias}}}` : a,
 			"aria-label": t.zh ? `${a}（${i.alias}）` : a
 		}, e("code", {}, a), t.zh ? e("span", { class: "qqbot-chip__alias" }, i.alias) : null);
-		o.addEventListener("click", () => je(n(), a)), r.append(o);
+		o.addEventListener("click", () => Fe(n(), a)), r.append(o);
 	}
 	return e("div", { class: "qqbot-tokens" }, e("p", { class: "qqbot-tokens__title" }, t.t("template.tokens")), r, e("p", { class: "qqbot-tokens__hint" }, t.t("template.tokensHint")));
 }
-function Ne(t, n) {
+function Le(t, n) {
 	let r = "qqbot-presets-title", i = e("div", {
 		class: "qqbot-presets__row",
 		role: "group",
@@ -1604,7 +1754,7 @@ function Ne(t, n) {
 	}), a = [], o = () => {
 		for (let e of a) e.setAttribute("aria-pressed", "false");
 	}, s = t.item("message_template")?.default ?? "";
-	for (let r of Ae) {
+	for (let r of Pe) {
 		let c = r.text ?? s;
 		if (c === "") continue;
 		let l = e("button", {
@@ -1622,7 +1772,7 @@ function Ne(t, n) {
 		id: r
 	}, t.t("template.presets")), i);
 }
-function Pe(t) {
+function Re(t) {
 	let n = "qqbot-preview-title", r = e("pre", { class: "qqbot-preview__body" }), i = e("span", { class: "qqbot-count" }), a = e("span", { class: "qqbot-badge" }), o = e("span", { class: "qqbot-badge qqbot-badge--warn" }, t.t("template.truncated"));
 	o.hidden = !0;
 	let s = e("p", { class: "qqbot-preview__unknown" });
@@ -1635,7 +1785,7 @@ function Pe(t) {
 	let d = e("span", { class: "qqbot-preview__sampled" }, t.t("template.sampleUsed"));
 	d.hidden = !0;
 	let f = {}, p = e("div", { class: "qqbot-preview__sample-grid" });
-	for (let n of q) {
+	for (let n of Z) {
 		f[n.token] = "";
 		let r = `qqbot-sample-${n.token}`, i = e("input", {
 			type: "text",
@@ -1659,12 +1809,12 @@ function Pe(t) {
 	}, e("header", { class: "qqbot-preview__head" }, e("h4", {
 		class: "qqbot-preview__title",
 		id: n
-	}, t.t("template.preview")), a, d, i, o), u, m, r, s, h), _, v = 0, y = "saved", b = "", x = !1, S = () => K.some((e) => Y(t.getValue(e)) !== Y(t.savedValues[e])), C = () => {
+	}, t.t("template.preview")), a, d, i, o), u, m, r, s, h), _, v = 0, y = "saved", b = "", x = !1, S = () => X.some((e) => $(t.getValue(e)) !== $(t.savedValues[e])), C = () => {
 		let e = S(), n = e && y === "draft";
 		return a.textContent = t.t(n ? "template.previewDraftBadge" : "template.previewSavedBadge"), a.classList.toggle("qqbot-badge--quiet", n), u.hidden = !e, l.hidden = !e, e && (c.textContent = t.t(n ? "template.previewDirtyDraft" : "template.previewDirty"), l.textContent = t.t(n ? "template.previewUseSaved" : "template.previewUseDraft")), n;
 	}, w = () => {
 		let e = {};
-		for (let t of q) {
+		for (let t of Z) {
 			let n = f[t.token] ?? "";
 			n.trim() !== "" && (e[t.token] = n);
 		}
@@ -1672,8 +1822,8 @@ function Pe(t) {
 	}, T = (e) => {
 		if (typeof e != "object" || !e) return;
 		let n = e;
-		for (let e of K) {
-			let r = Y(n[e]);
+		for (let e of X) {
+			let r = $(n[e]);
 			r !== null && (t.savedValues[e] = r);
 		}
 		C();
@@ -1683,7 +1833,7 @@ function Pe(t) {
 			source: "saved",
 			...r
 		};
-		let i = J(t.getValue("excerpt_limit")), a = J(t.getValue("max_message_chars"));
+		let i = Q(t.getValue("excerpt_limit")), a = Q(t.getValue("max_message_chars"));
 		return {
 			source: "draft",
 			template: t.getValue("message_template"),
@@ -1713,7 +1863,7 @@ function Pe(t) {
 				return n !== v || t.disposed || (o.hidden = !0, d.hidden = !0, s.hidden = !0, r.classList.add("is-empty"), r.textContent = t.t("template.previewFailed"), i.textContent = ""), !1;
 			}
 		}
-	}, k = (e = ke) => {
+	}, k = (e = Ne) => {
 		_ !== void 0 && window.clearTimeout(_), _ = window.setTimeout(() => {
 			_ = void 0, O();
 		}, e);
@@ -1722,60 +1872,60 @@ function Pe(t) {
 		y = y === "draft" ? "saved" : "draft", k(0);
 	}), t.onSavedChange(() => {
 		y = "saved", b = "", x = !1, k(0);
-	}), t.onInput(K, () => {
+	}), t.onInput(X, () => {
 		C();
-	}), t.onInput(K, k), C(), k(0), {
+	}), t.onInput(X, k), C(), k(0), {
 		root: g,
 		stop: () => {
 			_ !== void 0 && window.clearTimeout(_), _ = void 0;
 		}
 	};
 }
-function Fe(e) {
-	let t = B(e, {
+function ze(e) {
+	let t = W(e, {
 		id: "template",
 		keys: ["message_format", "excerpt_limit"],
 		title: e.t("group.template"),
 		hint: e.t("group.template.hint")
-	}), n = t.querySelector(".qqbot-grid"), r = z(e, "message_template");
+	}), n = t.querySelector(".qqbot-grid"), r = U(e, "message_template");
 	if (n && r) {
 		let t = () => r.control;
-		r.root.insertBefore(Ne(e, t), r.control), r.root.insertBefore(Me(e, t), r.control), n.append(r.root);
+		r.root.insertBefore(Le(e, t), r.control), r.root.insertBefore(Ie(e, t), r.control), n.append(r.root);
 	}
-	let i = Pe(e);
+	let i = Re(e);
 	n && n.append(i.root);
-	let a = z(e, "signature");
+	let a = U(e, "signature");
 	return n && a && n.append(a.root), {
 		root: t,
 		stop: i.stop
 	};
 }
 // src/app.ts
-var X = {
+var Be = {
 	connection: "group.connection",
 	targets: "group.targets",
 	template: "group.template",
 	limits: "group.limits",
 	probe: "group.probe"
-}, Z = {
+}, Ve = {
 	connection: "group.connection.hint",
 	targets: "group.targets.hint",
 	template: "group.template.hint",
 	limits: "group.limits.hint",
 	probe: "group.probe.hint"
-}, Q = [
+}, He = [
 	"connection",
 	"targets",
 	"template",
 	"limits",
 	"probe"
-], Ie = [
+], Ue = [
 	"message_template",
 	"message_format",
 	"signature",
 	"excerpt_limit",
 	"max_message_chars"
-], Le = {
+], We = {
 	route: {
 		title: "error.routeTitle",
 		detail: "error.routeDetail"
@@ -1793,7 +1943,7 @@ var X = {
 		detail: "error.serviceDetail"
 	}
 };
-function $(e) {
+function Ge(e) {
 	if (!e || typeof e != "object") return;
 	let t = e;
 	for (let e of [
@@ -1803,31 +1953,31 @@ function $(e) {
 		t.cause?.status
 	]) if (typeof e == "number" && e >= 400 && e <= 599) return e;
 }
-function Re(e) {
-	let t = $(e);
+function Ke(e) {
+	let t = Ge(e);
 	return t === void 0 || t === 404 ? "route" : t === 401 || t === 403 ? "permission" : t === 429 ? "rate" : "service";
 }
-function ze(t) {
-	let n = De(t.locale), r = n.t, i = t.settings.items ?? [], a = /* @__PURE__ */ new Map(), o = {}, s = {};
+function qe(t) {
+	let n = je(t.locale), r = n.t, i = t.settings.items ?? [], a = /* @__PURE__ */ new Map(), o = {}, s = {};
 	for (let e of i) {
 		a.set(e.key, e);
 		let t = typeof e.value == "string" ? e.value : e.default ?? "";
 		o[e.key] = t, s[e.key] = t;
 	}
-	let c = e("strong"), l = e("span", { class: "qqbot-banner__detail" }), u = e("div", {
+	let l = e("strong"), u = e("span", { class: "qqbot-banner__detail" }), d = e("div", {
 		class: "qqbot-banner",
 		role: "alert"
-	}, c, l);
-	u.hidden = !0;
-	let d = (e) => {
-		let t = Le[e];
-		c.textContent = r(t.title), l.textContent = r(t.detail), u.hidden = !1;
-	}, f = /* @__PURE__ */ new Map(), p = /* @__PURE__ */ new Map(), m = /* @__PURE__ */ new Set(), h = /* @__PURE__ */ new Set(), g = (e) => {
-		let t = p.get(e);
+	}, l, u);
+	d.hidden = !0;
+	let f = (e) => {
+		let t = We[e];
+		l.textContent = r(t.title), u.textContent = r(t.detail), d.hidden = !1;
+	}, p = /* @__PURE__ */ new Map(), m = /* @__PURE__ */ new Map(), h = /* @__PURE__ */ new Set(), g = /* @__PURE__ */ new Set(), _ = (e) => {
+		let t = m.get(e);
 		if (t) for (let e of t) e();
-	}, _ = (e, t) => {
+	}, v = (e, t) => {
 		e instanceof HTMLInputElement && e.type === "checkbox" ? e.checked = t === "true" : e.value !== t && (e.value = t);
-	}, v = {
+	}, y = {
 		bridge: t,
 		i18n: n,
 		t: r,
@@ -1843,9 +1993,9 @@ function ze(t) {
 					...n,
 					responseMode: "body"
 				});
-				return u.hidden = !0, r;
+				return d.hidden = !0, r;
 			} catch (e) {
-				throw d(Re(e)), e;
+				throw f(Ke(e)), e;
 			}
 		},
 		toast: (e, n, r) => t.toast({
@@ -1856,59 +2006,59 @@ function ze(t) {
 		getValue: (e) => o[e] ?? "",
 		setValue: (e, n, r = !0) => {
 			o[e] = n, t.settings.updateValue(e, n);
-			let i = f.get(e);
-			r && i && _(i, n);
+			let i = p.get(e);
+			r && i && v(i, n);
 		},
 		registerControl: (e, n, r) => {
-			f.set(e, n);
+			p.set(e, n);
 			let i = () => {
 				let n = r();
-				o[e] !== n && (o[e] = n, t.settings.updateValue(e, n)), g(e);
+				o[e] !== n && (o[e] = n, t.settings.updateValue(e, n)), _(e);
 			};
 			n.addEventListener("input", i), n.addEventListener("change", i);
 		},
 		onInput: (e, t) => {
 			for (let n of e) {
-				let e = p.get(n) ?? /* @__PURE__ */ new Set();
-				e.add(t), p.set(n, e);
+				let e = m.get(n) ?? /* @__PURE__ */ new Set();
+				e.add(t), m.set(n, e);
 			}
 		},
-		focus: (e) => f.get(e)?.focus(),
+		focus: (e) => p.get(e)?.focus(),
 		syncFromBridge: () => {
 			let e = t.settings.values(), n = !1;
 			for (let t of Object.keys(o)) {
 				let r = e[t];
 				if (typeof r != "string" || r === o[t]) continue;
 				o[t] = r;
-				let i = f.get(t);
-				i && _(i, r), Ie.includes(t) && (n = !0);
+				let i = p.get(t);
+				i && v(i, r), Ue.includes(t) && (n = !0);
 			}
-			for (let e of h) e();
-			n && g("message_template");
+			for (let e of g) e();
+			n && _("message_template");
 		},
 		onSavedChange: (e) => {
-			h.add(e);
+			g.add(e);
 		},
 		markSecretSaved: () => {
-			v.secretSaved = !0;
-			for (let e of m) e();
+			y.secretSaved = !0;
+			for (let e of h) e();
 		},
 		onSecretSavedChange: (e) => {
-			m.add(e);
+			h.add(e);
 		}
-	}, y = me(v), b = Fe(v), x = we(v), S = ge(v), C = /* @__PURE__ */ new Map();
+	}, b = c(y), x = ve(y), S = ze(y), C = Oe(y), w = be(y), T = /* @__PURE__ */ new Map();
 	for (let e of i) {
-		let t = (e.groupId || "").trim() || "other", n = C.get(t);
-		n ? n.push(e) : C.set(t, [e]);
+		let t = (e.groupId || "").trim() || "other", n = T.get(t);
+		n ? n.push(e) : T.set(t, [e]);
 	}
-	let w = [...Q.filter((e) => C.has(e)), ...[...C.keys()].filter((e) => !Q.includes(e))], T = [];
-	for (let e of w) {
-		let t = C.get(e) ?? [];
+	let E = [...He.filter((e) => T.has(e)), ...[...T.keys()].filter((e) => !He.includes(e))], D = [];
+	for (let e of E) {
+		let t = T.get(e) ?? [];
 		if (e === "template") {
-			T.push(b.root);
+			D.push(S.root);
 			continue;
 		}
-		let n = e === "other" ? r("group.other") : X[e] ? r(X[e]) : e, i = e === "other" ? r("group.other.hint") : Z[e] ? r(Z[e]) : void 0, a = B(v, {
+		let n = e === "other" ? r("group.other") : Be[e] ? r(Be[e]) : e, i = e === "other" ? r("group.other.hint") : Ve[e] ? r(Ve[e]) : void 0, a = W(y, {
 			id: e,
 			keys: t.map((e) => e.key),
 			title: n,
@@ -1916,22 +2066,22 @@ function ze(t) {
 		});
 		if (e === "targets") {
 			let e = a.querySelector("[data-key=\"group_ids\"]");
-			e?.parentElement && e.parentElement.insertBefore(x.root, e);
+			e?.parentElement && e.parentElement.insertBefore(C.root, e);
 		}
-		T.push(a);
+		D.push(a);
 	}
-	let E = e("div", { class: "qqbot-settings" }, u, y.root, ...T, S.root);
+	let O = e("div", { class: "qqbot-settings" }, d, b.root, x.root, ...D, w.root);
 	return {
-		root: E,
+		root: O,
 		destroy: () => {
-			v.disposed = !0, y.destroy(), b.stop(), x.destroy(), S.destroy(), E.remove();
+			y.disposed = !0, b.destroy(), x.destroy(), S.stop(), C.destroy(), w.destroy(), O.remove();
 		}
 	};
 }
 // src/settings.ts
-var Be = 1;
-function Ve(e, t) {
-	let n = ze(t);
+var Je = 1;
+function Ye(e, t) {
+	let n = qe(t);
 	return e.append(n.root), () => n.destroy();
 }
-export { Be as apiVersion, Ve as mount };
+export { Je as apiVersion, Ye as mount };
