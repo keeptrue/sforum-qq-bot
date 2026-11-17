@@ -142,6 +142,81 @@ func TestRouteGroupsListNameUnavailableDegrades(t *testing.T) {
 	}
 }
 
+// 零凭据时一个群名都不查：连 token 都取不到，发请求只会白等一次超时。
+func TestRouteGroupsListSkipsLookupWithoutCredentials(t *testing.T) {
+	config := testConfig()
+	config.AppSecret = ""
+	instance := newRouteTestPlugin(t, config, nil)
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		writeJSON(t, writer, http.StatusOK, map[string]any{"access_token": "tok", "expires_in": 7200})
+	}))
+	t.Cleanup(server.Close)
+	instance.client.baseURL = server.URL
+	instance.state.RecordClaim("GROUP_A", "GROUP_AT_MESSAGE_CREATE")
+
+	response, err := instance.InvokeRoute(context.Background(), newRouteRequest(t, routeGroupsListID, nil))
+	if err != nil {
+		t.Fatalf("查询群列表失败：%v", err)
+	}
+	values := routeDocumentValues(t, response, groupsListOutputSchema)
+	group := groupsListGroup(t, values, 0)
+	if group["nameUnavailable"] != true {
+		t.Fatalf("没有凭据时名字应标为不可用：%v", group["nameUnavailable"])
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("零凭据不该发任何请求，实际 %d 次", hits.Load())
+	}
+}
+
+// 失败缓存按性质分档：11253（确定性无权限）缓存久，瞬时失败只缓存几十秒，
+// 成功缓存一小时。一次慢请求不该让群名十分钟不再重查。
+func TestGroupNameFailureCacheTTL(t *testing.T) {
+	clock := newFakeClock()
+	cache := newGroupNameCache(clock.Now)
+
+	cache.storeFailure("GROUP_DENIED", &QQError{Code: 11253, Reason: "该接口需要平台白名单"})
+	if _, cached := cache.lookup("GROUP_DENIED"); !cached {
+		t.Fatal("失败结果也应进缓存")
+	}
+	clock.Advance(groupsNameTransientTTL + time.Second)
+	if _, cached := cache.lookup("GROUP_DENIED"); !cached {
+		t.Fatal("11253 是确定性结论，不该按瞬时 TTL 过期")
+	}
+	clock.Advance(groupsNameDeniedTTL)
+	if _, cached := cache.lookup("GROUP_DENIED"); cached {
+		t.Fatal("超过 11253 的缓存期应重新查询")
+	}
+
+	cache.storeFailure("GROUP_TIMEOUT", &QQError{Reason: "等待刷新访问凭证时已超时", Transient: true})
+	clock.Advance(groupsNameTransientTTL + time.Second)
+	if _, cached := cache.lookup("GROUP_TIMEOUT"); cached {
+		t.Fatal("瞬时失败只该缓存几十秒")
+	}
+
+	cache.storeName("GROUP_OK", "读书分享会")
+	clock.Advance(groupsNameSuccessTTL - time.Second)
+	if name, cached := cache.lookup("GROUP_OK"); !cached || name != "读书分享会" {
+		t.Fatalf("成功结果在 TTL 内应命中：%q / %v", name, cached)
+	}
+	clock.Advance(2 * time.Second)
+	if _, cached := cache.lookup("GROUP_OK"); cached {
+		t.Fatal("超过成功 TTL 应重新查询")
+	}
+
+	// 分档策略本身：11253 与瞬时错误不能落进同一档。
+	if got := groupsNameFailureTTL(&QQError{Code: 11253}); got != groupsNameDeniedTTL {
+		t.Fatalf("11253 应缓存 %s，实际 %s", groupsNameDeniedTTL, got)
+	}
+	if got := groupsNameFailureTTL(&QQError{Transient: true}); got != groupsNameTransientTTL {
+		t.Fatalf("瞬时错误应缓存 %s，实际 %s", groupsNameTransientTTL, got)
+	}
+	if got := groupsNameFailureTTL(&QQError{HTTPStatus: http.StatusBadGateway}); got != groupsNameTransientTTL {
+		t.Fatalf("HTTP 5xx（Code==0）应缓存 %s，实际 %s", groupsNameTransientTTL, got)
+	}
+}
+
 // groups/list 的权限面由宿主守卫执行（core.guard.permission + 插件权限键），
 // 插件侧不该复读一遍判定；这里钉住的是清单声明，改错就会在宿主侧变成另一个权限面。
 func TestRouteGroupsListRequiresPermission(t *testing.T) {

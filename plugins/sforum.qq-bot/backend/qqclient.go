@@ -89,18 +89,22 @@ type QQClient struct {
 	token       string
 	tokenExpiry time.Time
 
-	refreshMu sync.Mutex
+	// refreshGate 是容量 1 的信号量：拿到令牌的那个调用方去刷新，其余调用方
+	// **可以带着 ctx 等待**。用 channel 而不是 Mutex 是因为「等锁」必须能被预算
+	// 取消——groups/list 的 4 秒预算、dispatcher 的发送超时都压在这条路径上。
+	refreshGate chan struct{}
 }
 
 func newQQClient(config Config, log *logger) *QQClient {
 	return &QQClient{
-		appID:     config.AppID,
-		appSecret: config.AppSecret,
-		baseURL:   defaultQQBaseURL,
-		http:      &http.Client{},
-		timeout:   config.SendTimeout(),
-		log:       log,
-		now:       time.Now,
+		appID:       config.AppID,
+		appSecret:   config.AppSecret,
+		baseURL:     defaultQQBaseURL,
+		http:        &http.Client{},
+		timeout:     config.SendTimeout(),
+		log:         log,
+		now:         time.Now,
+		refreshGate: make(chan struct{}, 1),
 	}
 }
 
@@ -126,8 +130,22 @@ func (c *QQClient) AccessToken(ctx context.Context) (string, error) {
 
 func (c *QQClient) refreshToken(ctx context.Context) (string, error) {
 	// 同一个进程里只有一个刷新者；其余调用等它写回缓存后直接命中。
-	c.refreshMu.Lock()
-	defer c.refreshMu.Unlock()
+	//
+	// 等锁可被 ctx 取消：否则「4 秒预算」在别的调用方正刷新 token 时会失效。
+	// 取消只发生在**等锁**阶段，刷新本身没开始，所以不会留下半刷新的缓存状态。
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case c.refreshGate <- struct{}{}:
+	case <-ctx.Done():
+		return "", &QQError{
+			Reason:    "等待刷新访问凭证时已超时",
+			Transient: true,
+			Detail:    truncateErrorDetail(ctx.Err()),
+		}
+	}
+	defer func() { <-c.refreshGate }()
 
 	c.mu.Lock()
 	cached := c.token
