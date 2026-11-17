@@ -46,7 +46,14 @@ sha256sum plugins/sforum.qq-bot/backend/plugin
 
 本轮实测两边都是 `f2b92b31218cf34f95fd68e838d3cdc717b18eb63cc406158892561a9b94be49`。
 
-- 后台界面里看到的不是**完整摘要**（授权/升级卡片上只给概括过的值），精确值一律以这两条命令为准。
+- **后台不显示 `backend.digest`**，任何界面都没有它（在宿主根跑
+  `rg 'backendDigest|backend\.digest' apps/web` 零命中）。
+  后台能看到的是**包摘要**：授权卡显示完整 `packageDigest`
+  （`apps/web/app/components/admin/SFAdminExecutableTrustImpact.vue:217-218`，由
+  `SFAdminExtensionEnableDialog.vue:156` 挂上去），升级卡**在内容更新时**显示包摘要前 8 位
+  （`apps/web/app/utils/admin/extensions/updatePresentation.ts:52-55` 的 `shortDigest`、
+  `apps/web/app/pages/admin/extensions/index.vue:666-671`，纯版本升级不显示摘要）。
+  两者都不是 `backend.digest`，**不要**拿它们与清单里的值比；`backend.digest` 只以那两条命令为准。
 - 不相等时**不要手改清单**：跑一次 `./scripts/prepare-package.sh`，再走
   「授权当前精确制品 → 确认并升级」。宿主 dev watcher 在开发机上重建出来的二进制
   摘要天然与发布口径不同，那是正常现象，见 `NOTES.md` §11。
@@ -74,8 +81,9 @@ sha256sum plugins/sforum.qq-bot/backend/plugin
 
 1. 点「扫码绑定」。卡片先显示「正在生成二维码…」。
 2. 出码后卡片显示二维码，旁边（窄屏会换行到下方）一行「用手机 QQ 扫码，然后在手机上确认授权。」
-   和一个从 `10:00` 开始走的倒计时（`bind-card.ts:117-138`；倒计时起点是 `/bind/start` 返回的
-   `expiresInSeconds`，即 600 秒）。
+   和一个从 `10:00` 开始走的倒计时（等待态布局在 `bind-card.ts:117-138`；倒计时起点在 `:270`
+   `expiresAt = Date.now() + ttlSeconds(response.expiresInSeconds) * 1000`，而 `expiresInSeconds`
+   来自 `/bind/start`，即 600 秒）。
 3. 手机 QQ 扫码 → 手机上点确认授权。
 4. 卡片变成「扫码成功，正在保存凭据…」，随后显示「已绑定并保存」+
    「当前 AppID：`APP_ID`」，并弹一条同名 toast。
@@ -160,14 +168,17 @@ sha256sum plugins/sforum.qq-bot/backend/plugin
   没批下来就只能手动填群 ID）/ 长连接没连上（看状态第 3 行）。
 - 状态第 3 行就是长连接状态（第 1 行是标题、第 2 行是凭据与目标群那一行，别数错）。这一行的
   状态值只有五种：`disabled`（识别开关关着）/ `connecting` / `connected` / `unauthorized`
-  （凭据被平台拒）/ `error`（`backend/gateway.go:34-38`）；不是 `connected` 时后面还会带
-  「，最近错误：…」。此时第 2 步的群事件根本收不到，先解决长连接。
+  （凭据被平台拒）/ `error`（`backend/gateway.go:34-38`）。**只有 reason 非空时才追加**
+  「，最近错误：…」（`backend/tool.go:259-261`）：`connecting` 与开关关闭的 `disabled` 都是空
+  reason（`gateway.go:200`、`:139`），所以常见形态只有状态值本身；`unauthorized` / `error`
+  才一定带原因（`gateway.go:212`、`:215`、`:217`）。不是 `connected` 时，第 2 步的群事件根本
+  收不到，先解决长连接。
 
 > **✓ 通过判据（步骤二）**
 >
 > - 「推送状态」里至少有一行完整 `group_openid`
 > - 白名单保存后，再看状态第 2 行（凭据那一行）里的 `目标群：N 个`：N 是**去重后**的条数——
->   注释行、空行不算，重复的群 ID 只算一次（`backend/config.go:159-178` 的 `splitSettingList`）
+>   注释行、空行不算，重复的群 ID 只算一次（`backend/config.go:159-176` 的 `splitSettingList`）
 
 ---
 
@@ -262,7 +273,7 @@ https://forum.example.com/t/10001
 
 - **每分钟最多 20 条是全局额度，不是单群额度。** 默认值来自 `backend/config.go:22` 的
   `defaultMaxPushesPerMinute`；插件里只有一个令牌桶，所有群共用、匀速回填
-  （`backend/dispatcher.go:62`、`:86`、`:365-383`）；超出的消息排队等待而不是丢弃。设置项
+  （`backend/dispatcher.go:62`、`:86`、`:366-386`）；超出的消息排队等待而不是丢弃。设置项
   `max_pushes_per_minute` 的说明写的也是「全局每分钟最多发多少条」
   （`manifest/settings.json:275-279`）。
 - **单群每日 800 条**（`backend/config.go:21` 的 `defaultDailyPushCapPerGroup`）。触顶后当天不再

@@ -257,8 +257,9 @@ ci 同口径）都带 `CGO_ENABLED=0`、`-trimpath`、`-buildvcs=false`。差别
 现在写的是「不带 `-ldflags` 是发行口径、摘要不跨环境相同」。它们只点出了前两个变量，本节表格
 补上第三个：工具链。历史成因备查：宿主后来才补上两件事——`-ldflags=-s -w` 来自 `42c2a4483`
 （dev watcher 与 build.sh 产物对齐），`GOTOOLCHAIN` 钉到 `go.mod` 的 `go` 行 + 临时 go.work
-剔掉 replace 的文件系统路径来自 `1906f971f`。现在真正一致的只有**编译参数**（`CGO_ENABLED` /
-`-trimpath` / `-buildvcs=false` / 不带 `-ldflags`），摘要从来不是跨环境可对齐的量。
+剔掉 replace 的文件系统路径来自 `1906f971f`。**本仓库三者之间**现在真正一致的只有**编译参数**
+（`CGO_ENABLED` / `-trimpath` / `-buildvcs=false` / 不带 `-ldflags`）；宿主 dev 连这一组都多一个
+`-ldflags`。摘要从来不是跨环境可对齐的量。
 
 **replace 路径与工具链两个变量都在改字节。** 两个工作流都把 replace 重写成绝对路径
 （`ci.yml:164`、`release.yml:121` 与 `:181` 的 `go mod edit -replace …="$GITHUB_WORKSPACE/sforum/apps/api"`），
@@ -333,10 +334,13 @@ sed -i "s#^replace github.com/keeptrue/sforum/apps/api v0.0.0 => .*#replace gith
 而不是「同一个二进制」。落地成三条**处置**（这里说的是怎么做，不是 §11.2 那三处文件注释）：
 
 1. 看到摘要不一致、后台要重新授权，先按 §11.5 分类；**不要**去调参数「对齐」。
-2. 真要两边逐字节一致，得把 §11.2 那三个变量同时按住，只有两条路：给本仓库的脚本与流水线
-   补 `-ldflags=-s -w`、把 `GOTOOLCHAIN` 钉到宿主的 1.26.11、再复刻临时 go.work 剔掉 replace
-   路径的逻辑；或者让宿主去掉 `-ldflags` 并改回相对 replace。两条都是改发布口径 / 改宿主，
-   代价远大于收益——dev 产物只在开发机上有效，交付与发版一律以 `release.yml` 构建的制品为准。
+2. 真要两边逐字节一致，得把 §11.2 那三个变量**同时**按住，两条路都必须闭环：① 让本仓库靠向
+   宿主——脚本与流水线补 `-ldflags=-s -w`、把 `GOTOOLCHAIN` 钉到 1.26.11、再复刻临时 go.work
+   剔掉 replace 路径的逻辑（等于完全复刻宿主 dev 口径）；② 让宿主靠向本仓库——去掉 `-ldflags`、
+   改回相对 replace，**并且**不再按 `go.mod` 钉 `GOTOOLCHAIN`（`dev_build.go:127`）。②少了最后
+   一条就不闭环：宿主仍用 1.26.11、本地仍是 1.27.1，摘要会停在 §11.3 第 2 行的 `8bf8b800…`，
+   与入库的 `f2b92b31…` 依然不等。两条都是改发布口径 / 改宿主，代价远大于收益——dev 产物只在
+   开发机上有效，交付与发版一律以 `release.yml` 构建的制品为准。
 3. 验收与发版判断只认 `scripts/prepare-package.sh` 重跑后的摘要。宿主 dev 构建覆盖出来的
    那一份不进入任何交付结论。
 
