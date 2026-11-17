@@ -96,6 +96,54 @@ jobs:
             echo "manifest=pending" >> "$GITHUB_OUTPUT"
             echo "::notice title=清单尚未落地::$PACKAGE_DIR/sforum.extension.json 不存在，跳过宿主契约校验。"
           fi
+          if [ -f "plugin/$PACKAGE_DIR/frontend/admin/package.json" ]; then
+            echo "frontend=ready" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=pending" >> "$GITHUB_OUTPUT"
+            echo "::notice title=前端尚未落地::$PACKAGE_DIR/frontend/admin/package.json 不存在，跳过前端构建与产物校验。"
+          fi
+
+      - name: Setup Bun
+        if: steps.detect.outputs.frontend == 'ready'
+        uses: oven-sh/setup-bun@v2
+        with:
+          # 依赖由 bun.lock 锁死；这里只跟最新工具链，避免钉一个不存在的版本号。
+          bun-version: latest
+
+      - name: Build frontend and verify committed artifacts
+        if: steps.detect.outputs.frontend == 'ready'
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/frontend/admin
+        # 宿主不编译前端源码：frontend/admin/dist 必须随源码提交，且同一份源码要复原同样的产物。
+        # 产物变了没提交、或构建不可复现，都在这里判失败。
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun run build
+          cd "$GITHUB_WORKSPACE/plugin"
+          if ! git diff --exit-code -- "$PACKAGE_DIR/frontend/admin/dist"; then
+            echo "::error title=前端产物与提交内容不一致::重新构建后的 dist 与仓库里的不同。把 ${PACKAGE_DIR}/frontend/admin/dist 的变更一并提交。"
+            exit 1
+          fi
+          untracked="$(git ls-files --others --exclude-standard -- "$PACKAGE_DIR/frontend/admin/dist")"
+          if [ -n "$untracked" ]; then
+            echo "::error title=前端产物未提交::以下产物没有入库："
+            echo "$untracked"
+            exit 1
+          fi
+
+      - name: Purge frontend node_modules before digest
+        # 宿主算作者树摘要走 DigestAuthorTree（跳过 node_modules），exact-artifact 校验走
+        # VerifiedTreeDigest（不跳过）——同一棵树两边摘要必然不同。digest/validate/test 之前
+        # 必须把依赖树物理删掉，否则报 `package digest mismatch after static inspection`。
+        run: |
+          set -euo pipefail
+          dep="plugin/$PACKAGE_DIR/frontend/admin/node_modules"
+          if [ -d "$dep" ]; then
+            rm -rf "$dep"
+            echo "已剔除 $dep"
+          else
+            echo "无需剔除：$dep 不存在"
+          fi
 
       - name: Check plugin go directive covers the host requirement
         if: steps.detect.outputs.backend == 'ready'

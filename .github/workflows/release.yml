@@ -51,7 +51,7 @@ jobs:
           go-version-file: sforum/apps/api/go.mod
           cache: false
 
-      - name: Require backend and manifest
+      - name: Require backend, manifest and frontend
         run: |
           set -euo pipefail
           if [ ! -f "plugin/$PACKAGE_DIR/backend/go.mod" ]; then
@@ -61,6 +61,47 @@ jobs:
           if [ ! -f "plugin/$PACKAGE_DIR/sforum.extension.json" ]; then
             echo "::error title=清单尚未落地::$PACKAGE_DIR/sforum.extension.json 不存在，无法发版。"
             exit 1
+          fi
+          if [ ! -f "plugin/$PACKAGE_DIR/frontend/admin/package.json" ]; then
+            echo "::error title=前端尚未落地::$PACKAGE_DIR/frontend/admin/package.json 不存在，发布包会缺设置页组件。"
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build frontend and verify committed artifacts
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/frontend/admin
+        # 发布包里带的是提交入库的 dist；重建后对不上就说明包内容与源码脱节，直接拦在发版前。
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun run build
+          cd "$GITHUB_WORKSPACE/plugin"
+          if ! git diff --exit-code -- "$PACKAGE_DIR/frontend/admin/dist"; then
+            echo "::error title=前端产物与提交内容不一致::重新构建后的 dist 与仓库里的不同。把 ${PACKAGE_DIR}/frontend/admin/dist 的变更一并提交再打标签。"
+            exit 1
+          fi
+          untracked="$(git ls-files --others --exclude-standard -- "$PACKAGE_DIR/frontend/admin/dist")"
+          if [ -n "$untracked" ]; then
+            echo "::error title=前端产物未提交::以下产物没有入库："
+            echo "$untracked"
+            exit 1
+          fi
+
+      - name: Purge frontend node_modules before digest
+        # 作者树摘要（DigestAuthorTree）跳过 node_modules，exact-artifact 校验（VerifiedTreeDigest）
+        # 不跳过；不删依赖树，digest --write 写进去的摘要与随后 validate/test 算出来的必然不同。
+        run: |
+          set -euo pipefail
+          dep="plugin/$PACKAGE_DIR/frontend/admin/node_modules"
+          if [ -d "$dep" ]; then
+            rm -rf "$dep"
+            echo "已剔除 $dep"
+          else
+            echo "无需剔除：$dep 不存在"
           fi
 
       - name: Check plugin go directive covers the host requirement
@@ -139,21 +180,55 @@ jobs:
         working-directory: plugin/${{ env.PACKAGE_DIR }}/backend
         run: go mod edit -replace github.com/keeptrue/sforum/apps/api="$GITHUB_WORKSPACE/sforum/apps/api"
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build frontend (must match the committed dist)
+        working-directory: plugin/${{ env.PACKAGE_DIR }}/frontend/admin
+        # 打包前重建一次，确保 zip 里的 dist 就是这份源码产出的；对不上就中止，别发一个漂移的包。
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun run build
+          cd "$GITHUB_WORKSPACE/plugin"
+          if ! git diff --exit-code -- "$PACKAGE_DIR/frontend/admin/dist"; then
+            echo "::error title=前端产物与提交内容不一致::重建后的 dist 与仓库里的不同，拒绝打包。"
+            exit 1
+          fi
+
+      - name: Purge frontend node_modules before packaging
+        # rsync 已把 node_modules 排除在 stage 之外，这里再物理删一次：stage 之外的摘要/校验
+        # 也不该看到依赖树，免得哪天有人去掉那条 exclude 就静默发一个摘要对不上的包。
+        run: |
+          set -euo pipefail
+          dep="plugin/$PACKAGE_DIR/frontend/admin/node_modules"
+          if [ -d "$dep" ]; then
+            rm -rf "$dep"
+            echo "已剔除 $dep"
+          else
+            echo "无需剔除：$dep 不存在"
+          fi
+
       - name: Build ${{ matrix.goos }}/${{ matrix.goarch }} package
         id: package
         run: |
           set -euo pipefail
           STAGE="$GITHUB_WORKSPACE/stage"
           rm -rf "$STAGE"; mkdir -p "$STAGE"
-          # 只复制运行时需要的文件：Go 源码、go.mod/sum、旧的构建产物都不进发布包。
+          # 只复制运行时需要的文件：Go 源码、go.mod/sum、旧的构建产物、前端依赖树都不进发布包。
           rsync -a \
             --exclude '/backend/*.go' --exclude '/backend/go.mod' --exclude '/backend/go.sum' \
             --exclude '/backend/plugin' --exclude '/backend/plugin.exe' \
+            --exclude '/frontend/admin/node_modules' \
             "plugin/$PACKAGE_DIR/" "$STAGE/"
 
+          # 构建参数必须与 prepare-package.sh / ci.yml / 宿主 dev 构建（ExtensionPackage/dev_build.go）
+          # 逐字一致：只允许 CGO_ENABLED + GOOS/GOARCH，不加 -ldflags（-s -w 会改字节 → 摘要对不上）。
           (cd "plugin/$PACKAGE_DIR/backend" && \
             CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-            go build -trimpath -buildvcs=false -ldflags "-s -w" -o "$STAGE/backend/plugin" ./)
+            go build -trimpath -buildvcs=false -o "$STAGE/backend/plugin" ./)
 
           VERSION="$(python3 -c "import json;print(json.load(open('plugin/$PACKAGE_DIR/sforum.extension.json'))['version'])")"
           ASSET="${PACKAGE_SLUG}_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}"

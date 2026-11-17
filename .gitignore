@@ -8,9 +8,19 @@
 /.build/
 /dist/
 
+# 前端依赖树：由 `bun install` 重建，不入库。
+# 注意 node_modules 不只是「忽略」——打包前必须物理删掉它：宿主算作者树摘要会跳过它，
+# 但 exact-artifact 校验不跳过，留着就必然报 package digest mismatch。
+# 注意 frontend/admin/dist 是「构建产物但必须入库」——宿主只读 dist、不编译前端源码，
+# 不要把它加进忽略列表（CI 会校验 dist 与源码一致）。
+/plugins/sforum.qq-bot/frontend/admin/node_modules/
+
 # 本地调试
 *.log
 .DS_Store
+
+# 团队协作产物（任务板快照、交接简报），不入库
+.dsh/
 
 # 编辑器
 .idea/
