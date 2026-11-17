@@ -23,6 +23,7 @@ const (
 	defaultMaxRetries           = 2
 	defaultSendTimeoutSeconds   = 10
 	defaultEnableGroupIDClaim   = true
+	defaultReplyOnMention       = true
 	defaultMessageFormat        = messageFormatText
 )
 
@@ -49,6 +50,9 @@ type Config struct {
 
 	Paused             bool
 	EnableGroupIDClaim bool
+	// ReplyOnMention 打开时，被 @ 会用事件里的 msg_id 回一句固定说明（被动回复，
+	// 不占主动消息频控）。它只影响「回不回」，不影响群 ID 认领。
+	ReplyOnMention bool
 
 	MessageFormat   string
 	MessageTemplate string
@@ -132,6 +136,7 @@ func LoadConfigLookup(lookup settingLookup) Config {
 		MaxRetries:           defaultMaxRetries,
 		SendTimeoutSeconds:   defaultSendTimeoutSeconds,
 		EnableGroupIDClaim:   defaultEnableGroupIDClaim,
+		ReplyOnMention:       defaultReplyOnMention,
 	}
 	if raw := getenv(settingPrefix + "MESSAGE_TEMPLATE"); strings.TrimSpace(raw) != "" {
 		config.MessageTemplate = raw
@@ -144,6 +149,7 @@ func LoadConfigLookup(lookup settingLookup) Config {
 	config.MessageFormat = parseFormat(getenv(settingPrefix+"MESSAGE_FORMAT"), &config)
 	config.Paused = parseBoolSetting(getenv, "PAUSED", false, &config)
 	config.EnableGroupIDClaim = parseBoolSetting(getenv, "ENABLE_GROUP_ID_CLAIM", defaultEnableGroupIDClaim, &config)
+	config.ReplyOnMention = parseBoolSetting(getenv, "REPLY_ON_MENTION", defaultReplyOnMention, &config)
 	config.LogVerbose = parseBoolSetting(getenv, "LOG_VERBOSE", false, &config)
 	config.ExcerptLimit = parseIntSetting(getenv, "EXCERPT_LIMIT", defaultExcerptLimit, &config)
 	config.MaxMessageChars = parseIntSetting(getenv, "MAX_MESSAGE_CHARS", defaultMaxMessageChars, &config)

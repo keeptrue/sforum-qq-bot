@@ -328,3 +328,66 @@ func TestMaskGroupIDAndMessageID(t *testing.T) {
 		t.Fatalf("message id 前缀不对：%q", got)
 	}
 }
+
+// 被动回复必须带 msg_id 与 msg_seq=1；空 msg_id 直接失败，不发请求。
+func TestSendPassiveGroupMessageCarriesMsgID(t *testing.T) {
+	var mu sync.Mutex
+	var bodies []map[string]any
+	client := newTestQQClient(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case tokenPath:
+			writeJSON(t, writer, http.StatusOK, map[string]any{"access_token": "tok-1", "expires_in": 7200})
+		case "/v2/groups/GROUP_A/messages":
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Errorf("消息请求体不是 JSON：%v", err)
+			}
+			mu.Lock()
+			bodies = append(bodies, body)
+			mu.Unlock()
+			writeJSON(t, writer, http.StatusOK, map[string]any{"id": "msg-out-1"})
+		default:
+			t.Errorf("意外路径 %s", request.URL.Path)
+			writeJSON(t, writer, http.StatusNotFound, map[string]any{})
+		}
+	}))
+
+	result, err := client.SendPassiveGroupMessage(t.Context(), "GROUP_A", "msg-in-1", "hi", messageFormatText)
+	if err != nil {
+		t.Fatalf("被动回复失败：%v", err)
+	}
+	if result.MessageID != "msg-out-1" {
+		t.Fatalf("回执 id 不对：%q", result.MessageID)
+	}
+
+	mu.Lock()
+	body := bodies[0]
+	count := len(bodies)
+	mu.Unlock()
+	if count != 1 {
+		t.Fatalf("应只发一条，实际 %d 条", count)
+	}
+	if body["msg_id"] != "msg-in-1" {
+		t.Fatalf("请求体缺 msg_id：%v", body)
+	}
+	if seq, ok := body["msg_seq"].(float64); !ok || int(seq) != 1 {
+		t.Fatalf("msg_seq 应固定为 1，得到 %v", body["msg_seq"])
+	}
+	if body["content"] != "hi" {
+		t.Fatalf("正文不对：%v", body["content"])
+	}
+	if format, ok := body["msg_type"].(float64); !ok || int(format) != 0 {
+		t.Fatalf("msg_type 应为 0，得到 %v", body["msg_type"])
+	}
+
+	// 空 msg_id：这是调用方的 bug，必须当场失败，绝不退化成本地主动消息。
+	if _, err := client.SendPassiveGroupMessage(t.Context(), "GROUP_A", "   ", "hi", messageFormatText); err == nil {
+		t.Fatal("空 msg_id 应直接失败")
+	}
+	mu.Lock()
+	count = len(bodies)
+	mu.Unlock()
+	if count != 1 {
+		t.Fatalf("空 msg_id 不该发请求，实际发了 %d 条", count)
+	}
+}

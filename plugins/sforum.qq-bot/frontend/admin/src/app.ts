@@ -1,4 +1,5 @@
 import type { AdminMicroFrontendBridgeV1 } from '@sforum/admin-sdk'
+import { createAccountCard } from './account-card'
 import { createBindCard } from './bind-card'
 import { el } from './dom'
 import { createFooter } from './footer'
@@ -204,6 +205,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
     },
     onSecretSavedChange: listener => { secretListeners.add(listener) }
   }
+  const account = createAccountCard(ctx)
   const bind = createBindCard(ctx)
   const template = createTemplateSection(ctx)
   const groups = createGroupsCard(ctx)
@@ -244,12 +246,15 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
     sections.push(section)
   }
 
-  const root = el('div', { class: 'qqbot-settings' }, banner, bind.root, ...sections, footer.root)
+  // The account card opens the page: it answers "who am I connected as" before
+  // anything the operator has to fill in.
+  const root = el('div', { class: 'qqbot-settings' }, banner, account.root, bind.root, ...sections, footer.root)
 
   return {
     root,
     destroy: () => {
       ctx.disposed = true
+      account.destroy()
       bind.destroy()
       template.stop()
       groups.destroy()

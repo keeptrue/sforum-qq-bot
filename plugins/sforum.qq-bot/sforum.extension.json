@@ -139,7 +139,7 @@
     "name": "SForum"
   },
   "backend": {
-    "digest": "ae47ea293d604af7e9ef5ac1e2a90b4ebd42e274d3ba5b77c55e37c3e528cab5",
+    "digest": "5e7935a8008c268a504e02019c133686827e20246ef2810f266c875138abcaf2",
     "entry": "backend/plugin",
     "hostApiVersion": "sforum.host@2",
     "protocolVersion": 2,
@@ -186,7 +186,7 @@
   "openapi": [
     {
       "contractVersion": "sforum.qq-bot.openapi.routes@1",
-      "digest": "e1bbdbbbb74b2d6acad00be0a3ca5e24f1acd4f3eae4625777a8a0f2b2c3f9ea",
+      "digest": "94f9e00fb07e7f05034e9339ebf66fe8fef7331ceb0138039e484441bb174d53",
       "id": "sforum.qq-bot.openapi.routes",
       "namespace": "sforum.qq-bot",
       "path": "openapi/routes.yaml"
@@ -194,7 +194,7 @@
   ],
   "packageFiles": [
     {
-      "digest": "ae47ea293d604af7e9ef5ac1e2a90b4ebd42e274d3ba5b77c55e37c3e528cab5",
+      "digest": "5e7935a8008c268a504e02019c133686827e20246ef2810f266c875138abcaf2",
       "id": "sforum.qq-bot.file.backend",
       "kind": "executable",
       "path": "backend/plugin"
@@ -298,19 +298,33 @@
       "version": "1"
     },
     {
-      "digest": "e1bbdbbbb74b2d6acad00be0a3ca5e24f1acd4f3eae4625777a8a0f2b2c3f9ea",
+      "digest": "ad954d5be3f54130672d8d8cd2f07ec97a84af7a009c7297343042655be83910",
+      "id": "sforum.qq-bot.account.status.input",
+      "kind": "schema",
+      "path": "schemas/account-status-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "c4ef544c0e04d8a6d431dad767a4c3f5525857e2a2795ab1b6addbb2b5e40365",
+      "id": "sforum.qq-bot.account.status.output",
+      "kind": "schema",
+      "path": "schemas/account-status-output.json",
+      "version": "1"
+    },
+    {
+      "digest": "94f9e00fb07e7f05034e9339ebf66fe8fef7331ceb0138039e484441bb174d53",
       "id": "sforum.qq-bot.file.openapi",
       "kind": "openapi",
       "path": "openapi/routes.yaml"
     },
     {
-      "digest": "52dd95d16c4b1adf8d8b2033fd1ea8afc6f4c02670c3fbd14f3e333f5dccc685",
+      "digest": "2db0e27e9f2cc2c0ac5ef8ec267097691dd64c9f8fe559faf706838f31160175",
       "id": "sforum.qq-bot.file.settings_entry",
       "kind": "frontend",
       "path": "frontend/admin/dist/settings.mjs"
     },
     {
-      "digest": "40335810f4cee9a89cb61afd90d63302f15d31ebf00505d9321abc993c8941c0",
+      "digest": "be1e910f91a783d010096fed7357be181ca0d304eb2dfdd53272cdd9c055712f",
       "id": "sforum.qq-bot.file.settings_style",
       "kind": "asset",
       "path": "frontend/admin/dist/settings.css"
@@ -439,10 +453,28 @@
       "requestSchema": "sforum.qq-bot.groups.list.input@1",
       "responseSchema": "sforum.qq-bot.groups.list.output@1",
       "timeoutMs": 15000
+    },
+    {
+      "access": "permission",
+      "action": "add",
+      "contractVersion": "sforum.qq-bot.route.account_status@1",
+      "fallback": "closed",
+      "guard": "core.guard.permission",
+      "handler": "sforum.qq-bot.route.account_status",
+      "id": "sforum.qq-bot.route.account_status",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/account/status",
+      "permission": "sforum.qq-bot.manage",
+      "requestSchema": "sforum.qq-bot.account.status.input@1",
+      "responseSchema": "sforum.qq-bot.account.status.output@1",
+      "timeoutMs": 15000
     }
   ],
   "sforumVersion": "\u003e=0.1.0",
   "type": "plugin",
   "url": "https://github.com/keeptrue/sforum-qq-bot",
-  "version": "0.3.0"
+  "version": "0.4.0"
 }

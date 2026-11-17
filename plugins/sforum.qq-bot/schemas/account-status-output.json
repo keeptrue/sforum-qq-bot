@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sforum.qq-bot.account.status.output@1",
+  "title": "qq bot account status response: current bot identity, gateway state and group counts",
+  "type": "object",
+  "properties": {
+    "appId": {
+      "type": "string",
+      "description": "AppID of the configured bot. It is a public identifier, not a credential."
+    },
+    "credentialsConfigured": {
+      "type": "boolean",
+      "description": "True when both AppID and AppSecret are set; without them nothing is sent and no bot lookup is attempted."
+    },
+    "bot": {
+      "type": "object",
+      "description": "Identity of the bot itself, read from GET /users/@me and cached for 10 minutes.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Bot display name (username from the platform); empty when unavailable."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Absolute avatar URL as returned by the platform; empty when unavailable or when the platform returned something that is not an absolute URL."
+        },
+        "available": {
+          "type": "boolean",
+          "description": "False when the identity could not be read (no credentials, invalid credentials, network failure); the route still answers 200."
+        },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "Readable Chinese reason when available is false; null when the identity was read successfully."
+        }
+      },
+      "additionalProperties": false
+    },
+    "gateway": {
+      "type": "object",
+      "description": "State of the long-lived event connection, read from the plugin's own process state; answering this never performs a request.",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["disabled", "connecting", "connected", "unauthorized", "error"],
+          "description": "Same five states the delivery status text reports."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Last readable error of the connection, empty when there is none."
+        },
+        "since": {
+          "type": ["string", "null"],
+          "description": "RFC 3339 timestamp the current connection started, derived from its uptime; null when not connected."
+        }
+      },
+      "additionalProperties": false
+    },
+    "groups": {
+      "type": "object",
+      "description": "How many groups the plugin knows about.",
+      "properties": {
+        "recognized": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Groups seen in the bot's own group events, the same source the group list uses."
+        },
+        "whitelisted": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Distinct non-empty entries in the group whitelist setting, the same count the settings page shows."
+        }
+      },
+      "additionalProperties": false
+    },
+    "checkedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 timestamp of this answer."
+    }
+  },
+  "additionalProperties": false
+}

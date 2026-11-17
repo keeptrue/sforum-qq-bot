@@ -88,6 +88,175 @@
   color: var(--qq-muted);
 }
 
+/* ---------- current account ---------- */
+
+.qqbot-account {
+  border-color: color-mix(in srgb, var(--qq-accent) 26%, var(--qq-border));
+}
+
+.qqbot-account__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.qqbot-account__refresh {
+  flex: none;
+  min-height: 1.9rem;
+  padding: 0.2rem 0.65rem;
+}
+
+.qqbot-account__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+}
+
+.qqbot-account__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.qqbot-account__avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 1px solid var(--qq-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--qq-accent) 10%, var(--qq-surface));
+  color: var(--qq-accent);
+  font-size: 1.05rem;
+  font-weight: 650;
+  overflow: hidden;
+}
+
+.qqbot-account__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qqbot-account__ident {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.qqbot-account__name {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.qqbot-account__appid {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+}
+
+.qqbot-account__appid.is-empty {
+  display: none;
+}
+
+.qqbot-account__appid-value {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.qqbot-account__status {
+  display: grid;
+  flex: 0 1 auto;
+  gap: 0.2rem;
+  min-width: 0;
+  text-align: right;
+}
+
+.qqbot-account__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--qq-border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  justify-self: end;
+}
+
+.qqbot-account__badge--ok {
+  border-color: color-mix(in srgb, var(--sf-success-500, #16a34a) 40%, transparent);
+  background: color-mix(in srgb, var(--sf-success-500, #16a34a) 12%, transparent);
+  color: color-mix(in srgb, var(--sf-success-500, #16a34a) 78%, var(--qq-text));
+}
+
+.qqbot-account__badge--warn {
+  border-color: color-mix(in srgb, var(--sf-warning-500, #d97706) 42%, transparent);
+  background: color-mix(in srgb, var(--sf-warning-500, #d97706) 12%, transparent);
+  color: color-mix(in srgb, var(--sf-warning-500, #d97706) 78%, var(--qq-text));
+}
+
+.qqbot-account__badge--bad {
+  border-color: color-mix(in srgb, var(--qq-danger) 42%, transparent);
+  background: color-mix(in srgb, var(--qq-danger) 12%, transparent);
+  color: color-mix(in srgb, var(--qq-danger) 80%, var(--qq-text));
+}
+
+.qqbot-account__badge--idle {
+  background: color-mix(in srgb, var(--qq-text) 6%, transparent);
+  color: var(--qq-muted);
+}
+
+.qqbot-account__reason {
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.qqbot-account__meta {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--qq-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.qqbot-account__meta--link {
+  color: var(--qq-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.qqbot-account__meta--link:focus-visible {
+  outline: 2px solid var(--qq-accent);
+  outline-offset: 2px;
+}
+
+.qqbot-account__note {
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+}
+
 /* ---------- card ---------- */
 
 .qqbot-card {

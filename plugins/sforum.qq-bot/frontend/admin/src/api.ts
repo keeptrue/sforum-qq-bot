@@ -51,3 +51,13 @@ export type GroupsListResponse = {
   claimEnabled?: unknown
   recordingLimit?: unknown
 }
+
+/** POST /account/status: who the bot is and whether it is connected right now. */
+export type AccountStatusResponse = {
+  appId?: unknown
+  credentialsConfigured?: unknown
+  bot?: unknown
+  gateway?: unknown
+  groups?: unknown
+  checkedAt?: unknown
+}

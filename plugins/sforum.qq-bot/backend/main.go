@@ -62,6 +62,8 @@ type plugin struct {
 
 	// groupNames 是群名的尽力而为缓存：群列表接口只在有缓存或还有配额时才问平台。
 	groupNames *groupNameCache
+	// botProfile 是 GET /users/@me 的缓存：账号状态卡片用它显示当前机器人身份。
+	botProfile *botProfileCache
 
 	topicQuery topicQueryFunc
 	probeOnce  sync.Once
@@ -99,6 +101,7 @@ func newPlugin(config Config, logOutput io.Writer) *plugin {
 		bind:       newBindClient(log),
 		bindStore:  NewBindStore(time.Now),
 		groupNames: newGroupNameCache(time.Now),
+		botProfile: newBotProfileCache(time.Now),
 	}
 	instance.Server = pluginv2.NewServer()
 	registry, err := pluginv2.NewAIToolRegistry(aiToolDefinitions(instance)...)

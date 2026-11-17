@@ -222,9 +222,31 @@ func (c *QQClient) invalidateToken() {
 	c.mu.Unlock()
 }
 
-// SendGroupMessage 向一个群发送文本或 Markdown 消息。HTTP 401 表示凭证失效，
-// 这里强制重取一次并重试一次；其余失败由 err_code 分类。
+// sendOptions 是一次群消息发送的可选参数。
+type sendOptions struct {
+	// msgID 非空表示**被动回复**：平台在事件发生后的 5 分钟窗口内接受这条消息，
+	// 且不占主动消息频控。空值就是主动消息。
+	msgID string
+}
+
+// SendGroupMessage 向一个群发送文本或 Markdown 消息（主动消息）。HTTP 401 表示
+// 凭证失效，这里强制重取一次并重试一次；其余失败由 err_code 分类。
 func (c *QQClient) SendGroupMessage(ctx context.Context, groupOpenID, content, format string) (SendResult, error) {
+	return c.sendGroupMessage(ctx, groupOpenID, content, format, sendOptions{})
+}
+
+// SendPassiveGroupMessage 用 msg_id 回复一条群消息（被动消息）。被动回复不占
+// 主动消息频控，是「被 @ 之后回一句」的唯一合规姿势；msg_id 为空时直接失败，
+// 不退化成本地主动消息——那会把一次交互变成一条计入日额度的推送。
+func (c *QQClient) SendPassiveGroupMessage(ctx context.Context, groupOpenID, msgID, content, format string) (SendResult, error) {
+	msgID = strings.TrimSpace(msgID)
+	if msgID == "" {
+		return SendResult{}, &QQError{Reason: "缺少 msg_id，无法被动回复"}
+	}
+	return c.sendGroupMessage(ctx, groupOpenID, content, format, sendOptions{msgID: msgID})
+}
+
+func (c *QQClient) sendGroupMessage(ctx context.Context, groupOpenID, content, format string, opts sendOptions) (SendResult, error) {
 	if !c.configured() {
 		return SendResult{}, &QQError{Reason: "尚未配置 AppID / AppSecret"}
 	}
@@ -232,7 +254,7 @@ func (c *QQClient) SendGroupMessage(ctx context.Context, groupOpenID, content, f
 	if err != nil {
 		return SendResult{}, err
 	}
-	result, err := c.sendOnce(ctx, token, groupOpenID, content, format)
+	result, err := c.sendOnce(ctx, token, groupOpenID, content, format, opts)
 	var qqError *QQError
 	if err == nil || !errors.As(err, &qqError) || qqError.HTTPStatus != http.StatusUnauthorized {
 		return result, err
@@ -242,13 +264,22 @@ func (c *QQClient) SendGroupMessage(ctx context.Context, groupOpenID, content, f
 	if refreshErr != nil {
 		return SendResult{}, refreshErr
 	}
-	return c.sendOnce(ctx, fresh, groupOpenID, content, format)
+	return c.sendOnce(ctx, fresh, groupOpenID, content, format, opts)
 }
 
-func (c *QQClient) sendOnce(ctx context.Context, token, groupOpenID, content, format string) (SendResult, error) {
+func (c *QQClient) sendOnce(ctx context.Context, token, groupOpenID, content, format string, opts sendOptions) (SendResult, error) {
 	body := map[string]any{"msg_type": 0, "content": content}
 	if strings.EqualFold(strings.TrimSpace(format), messageFormatMarkdown) {
 		body = map[string]any{"msg_type": 2, "markdown": map[string]string{"content": content}}
+	}
+	if opts.msgID != "" {
+		// 被动回复的唯一开关就是这一个字段：平台按它把消息落进 5 分钟窗口，
+		// 并且不计入主动消息频控。
+		body["msg_id"] = opts.msgID
+		// msg_seq 与 msg_id 联合去重：相同的组合重复发送会失败。我们靠网关侧的
+		// 「每群 60 秒只回一次」保证同一个 msg_id 只回一次，所以这里固定写 1——
+		// 固定值让平台成为第二道去重防线；改成自增反而会绕开它。
+		body["msg_seq"] = 1
 	}
 	encoded, err := json.Marshal(body)
 	if err != nil {
@@ -460,8 +491,21 @@ func errorForCode(code int, message string, httpStatus int) *QQError {
 		qqError.Transient = true
 	case 304022:
 		qqError.Reason = "该时段不允许推送"
-	case 40034128, 304023:
+	case 40034005, 304103:
+		// 被动回复用的 msg_id 过期：平台只接受事件发生后 5 分钟内的回复。
+		qqError.Reason = "被动回复窗口已过期（msg_id 超过 5 分钟或已被使用）"
+	case 40034128:
+		// 同一个码两种语境都出现：主动推送受限（群主关了主动消息），或被动回复的
+		// 时间/次数用尽（同一条消息最多被回复 5 次）。文案同时说清两种可能。
+		qqError.Reason = "主动消息受限，或被动回复的时间/次数已用尽（群主关闭「主动推送消息」时也会出现）"
+	case 304023:
 		qqError.Reason = "主动消息受限：可能群主关闭了「主动推送消息」"
+	case 40054005:
+		// msg_id + msg_seq 撞了：我们固定 msg_seq=1 并靠 60 秒闸去重，撞到就是
+		// 同一个 msg_id 被回了第二次。
+		qqError.Reason = "该消息已被回复过（msg_id 与 msg_seq 重复）"
+	case 40034101, 40054003:
+		qqError.Reason = "机器人不在该群里（可能已被移出），请重新拉入后再试"
 	case 11253:
 		qqError.Reason = "该接口需要平台白名单"
 	case 40054007, 40054018:
@@ -541,4 +585,90 @@ func messageIDPrefix(messageID string) string {
 		return string(runes)
 	}
 	return string(runes[:8])
+}
+
+// BotProfile 取机器人自身信息（`GET /users/@me`，官方 50 QPS）。它只用于设置页
+// 的状态卡片，失败时由调用方降级成「信息不可用」，绝不影响推送。
+func (c *QQClient) BotProfile(ctx context.Context) (BotProfile, error) {
+	if !c.configured() {
+		return BotProfile{}, &QQError{Reason: messageAccountCredentialsMissing}
+	}
+	token, err := c.AccessToken(ctx)
+	if err != nil {
+		return BotProfile{}, err
+	}
+	profile, err := c.botProfileOnce(ctx, token)
+	var qqError *QQError
+	if err == nil || !errors.As(err, &qqError) || qqError.HTTPStatus != http.StatusUnauthorized {
+		return profile, err
+	}
+	c.invalidateToken()
+	fresh, refreshErr := c.AccessToken(ctx)
+	if refreshErr != nil {
+		return BotProfile{}, refreshErr
+	}
+	return c.botProfileOnce(ctx, fresh)
+}
+
+func (c *QQClient) botProfileOnce(ctx context.Context, token string) (BotProfile, error) {
+	requestCtx, cancel := c.requestContext(ctx)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, c.baseURL+"/users/@me", nil)
+	if err != nil {
+		return BotProfile{}, &QQError{Reason: "构造机器人信息请求失败"}
+	}
+	request.Header.Set("Authorization", "QQBot "+token)
+	response, err := c.http.Do(request)
+	if err != nil {
+		return BotProfile{}, transportError(err)
+	}
+	defer response.Body.Close()
+	payload, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return BotProfile{}, transportError(err)
+	}
+
+	var decoded struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+		Avatar   string `json:"avatar"`
+		ErrCode  int    `json:"err_code"`
+		Code     int    `json:"code"`
+		Message  string `json:"message"`
+	}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		if response.StatusCode >= http.StatusInternalServerError {
+			return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "连不上 QQ 接口", Transient: true}
+		}
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 机器人信息接口返回了无法解析的内容"}
+	}
+	if decoded.ErrCode != 0 {
+		return BotProfile{}, errorForCode(decoded.ErrCode, decoded.Message, response.StatusCode)
+	}
+	if decoded.Code != 0 {
+		return BotProfile{}, errorForCode(decoded.Code, decoded.Message, response.StatusCode)
+	}
+	if response.StatusCode >= http.StatusInternalServerError {
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "连不上 QQ 接口", Transient: true}
+	}
+	if response.StatusCode == http.StatusUnauthorized {
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "访问凭证已失效"}
+	}
+	if response.StatusCode >= http.StatusBadRequest {
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 接口拒绝了本次请求"}
+	}
+
+	// 头像：官方返回完整 URL。万一是相对路径，宁可不给也不拼一个猜的基址。
+	avatar := strings.TrimSpace(decoded.Avatar)
+	if avatar != "" {
+		parsed, parseErr := url.Parse(avatar)
+		if parseErr != nil || !parsed.IsAbs() || parsed.Host == "" {
+			avatar = ""
+		}
+	}
+	name := strings.TrimSpace(decoded.Username)
+	if name == "" {
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 机器人信息接口没有返回昵称"}
+	}
+	return BotProfile{ID: strings.TrimSpace(decoded.ID), Name: name, AvatarURL: avatar}, nil
 }

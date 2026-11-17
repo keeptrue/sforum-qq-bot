@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SForum QQ Bot admin routes
-  version: 0.3.0
+  version: 0.4.0
 paths:
   /bind/start:
     post:
@@ -142,6 +142,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/sforum.qq-bot.groups.list.output@1"
+  /account/status:
+    post:
+      operationId: sforum.qq-bot.account.status
+      x-sforum-route-id: sforum.qq-bot.route.account_status
+      x-sforum-contract-version: sforum.qq-bot.route.account_status@1
+      x-sforum-guard: core.guard.permission
+      x-sforum-permission: sforum.qq-bot.manage
+      x-sforum-request-schema: sforum.qq-bot.account.status.input@1
+      x-sforum-response-schema: sforum.qq-bot.account.status.output@1
+      summary: Report the bot identity, the event connection state and the group counts shown on the settings page
+      description: The bot identity comes from GET /users/@me and is cached for ten minutes; a failed lookup degrades to available=false with a readable reason and the route still answers 200. The gateway state is read from the running process and performs no request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/sforum.qq-bot.account.status.input@1"
+      responses:
+        "200":
+          description: Account status card data; every block degrades on its own and never fails the request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/sforum.qq-bot.account.status.output@1"
 components:
   schemas:
     "sforum.qq-bot.bind.start.input@1":
@@ -168,3 +192,7 @@ components:
       $ref: "../schemas/groups-list-input.json"
     "sforum.qq-bot.groups.list.output@1":
       $ref: "../schemas/groups-list-output.json"
+    "sforum.qq-bot.account.status.input@1":
+      $ref: "../schemas/account-status-input.json"
+    "sforum.qq-bot.account.status.output@1":
+      $ref: "../schemas/account-status-output.json"

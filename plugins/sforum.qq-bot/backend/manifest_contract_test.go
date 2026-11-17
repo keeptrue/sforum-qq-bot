@@ -162,6 +162,7 @@ func TestManifestContract(t *testing.T) {
 			{routeTestPushID, testPushInputSchema, testPushOutputSchema, "/test-push"},
 			{routeStatusID, statusInputSchema, statusOutputSchema, "/status"},
 			{routeGroupsListID, groupsListInputSchema, groupsListOutputSchema, "/groups/list"},
+			{routeAccountStatusID, accountStatusInputSchema, accountStatusOutputSchema, "/account/status"},
 		}
 		if len(manifest.Routes) != len(expected) {
 			t.Fatalf("清单应声明 %d 条路由，实际 %d 条", len(expected), len(manifest.Routes))
@@ -245,6 +246,7 @@ func TestManifestContract(t *testing.T) {
 			"max_retries":              strconv.Itoa(defaultMaxRetries),
 			"send_timeout_seconds":     strconv.Itoa(defaultSendTimeoutSeconds),
 			"enable_group_id_claim":    strconv.FormatBool(defaultEnableGroupIDClaim),
+			"reply_on_mention":         strconv.FormatBool(defaultReplyOnMention),
 			"paused":                   "false",
 			"log_verbose":              "false",
 		}

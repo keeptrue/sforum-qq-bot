@@ -53,6 +53,20 @@ var claimEvents = map[string]struct{}{
 	"GROUP_MSG_RECEIVE":       {},
 }
 
+const (
+	// mentionReplyCooldown 是同一个群两次被动回复的最小间隔。平台侧被动回复有
+	// 5 分钟窗口，但运营者可能连着 @ 几次；60 秒足够表达「收到了」，又不会刷屏。
+	mentionReplyCooldown = 60 * time.Second
+	// mentionReplyTimeout 是单次被动回复的等待上限。网关读循环在这段时间里不读
+	// 新帧，所以刻意取得比发送超时短：宁可这一条回不出去，也别卡住事件处理。
+	mentionReplyTimeout = 5 * time.Second
+)
+
+// mentionReplyText 是被 @ 时的固定回复：只说清「这个机器人做什么、这个群怎么
+// 变成推送目标」。它刻意不是设置项——文案可配置就多一套运营面，而这句话不该
+// 有第二种说法。
+const mentionReplyText = "本机器人只做 SForum 论坛新帖推送；这个群已记录，可在后台勾选为推送目标。"
+
 // GatewayStatus 是长连接的可读状态。
 type GatewayStatus struct {
 	State        string
@@ -105,6 +119,9 @@ type Gateway struct {
 	backoffMax          time.Duration
 	unauthorizedBackoff time.Duration
 	helloTimeout        time.Duration
+
+	// mentionGate 是「同群 60 秒只回一次」的进程内记录。
+	mentionGate *mentionReplyGate
 }
 
 func newGateway(cfg Config, client *QQClient, state *State, log *logger) *Gateway {
@@ -122,6 +139,7 @@ func newGateway(cfg Config, client *QQClient, state *State, log *logger) *Gatewa
 		backoffMax:          time.Minute,
 		unauthorizedBackoff: 5 * time.Minute,
 		helloTimeout:        10 * time.Second,
+		mentionGate:         newMentionReplyGate(),
 	}
 	if cfg.GroupIDClaimEnabled() {
 		gateway.status = gatewayStateConnecting
@@ -311,7 +329,7 @@ func (g *Gateway) session() (gatewayFault, bool) {
 				g.setState(gatewayStateConnected, "")
 				connected = true
 			default:
-				g.recordClaim(frame.T, frame.D)
+				g.handleGroupEvent(frame.T, frame.D)
 			}
 		case gatewayOpReconnect:
 			return gatewayFault{kind: faultResume, reason: "平台要求重新连接"}, connected
@@ -372,6 +390,22 @@ func (g *Gateway) heartbeatLoop(conn *websocket.Conn, interval time.Duration, do
 	}
 }
 
+// handleGroupEvent 是群事件的唯一入口：**先**记群 ID（主功能），再按需被动回复。
+// 顺序是刻意的——回复要发 HTTP，任何失败都不该拖累群 ID 认领。
+func (g *Gateway) handleGroupEvent(eventType string, raw json.RawMessage) {
+	if _, ok := claimEvents[eventType]; !ok {
+		return
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return
+	}
+	g.recordClaimPayload(eventType, payload)
+	if eventType == "GROUP_AT_MESSAGE_CREATE" {
+		g.replyToMention(payload)
+	}
+}
+
 func (g *Gateway) recordClaim(eventType string, raw json.RawMessage) {
 	if _, ok := claimEvents[eventType]; !ok {
 		return
@@ -380,16 +414,104 @@ func (g *Gateway) recordClaim(eventType string, raw json.RawMessage) {
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return
 	}
-	groupOpenID := firstNonEmpty(
-		stringValue(payload, "group_openid"),
-		stringValue(payload, "groupOpenid"),
-		stringValue(payload, "group_id"),
-	)
+	g.recordClaimPayload(eventType, payload)
+}
+
+func (g *Gateway) recordClaimPayload(eventType string, payload map[string]any) {
+	groupOpenID := groupOpenIDOf(payload)
 	if groupOpenID == "" {
 		return
 	}
 	g.state.RecordClaim(groupOpenID, eventType)
 	g.log.Infof("qq-bot: 识别到群 %s（%s）", maskGroupID(groupOpenID), eventType)
+}
+
+// groupOpenIDOf 兼容平台两种字段写法：group_openid 与 group_id。
+func groupOpenIDOf(payload map[string]any) string {
+	return firstNonEmpty(
+		stringValue(payload, "group_openid"),
+		stringValue(payload, "groupOpenid"),
+		stringValue(payload, "group_id"),
+	)
+}
+
+// replyToMention 用事件里的 msg_id 做一次被动回复（不占主动消息频控）。
+//
+// 被动回复的边界（官方「发送群聊消息」页）：
+//   - msg_id 取自 GROUP_AT_MESSAGE_CREATE 事件的 **d.id**，5 分钟内有效；
+//   - 每条消息最多被回复 5 次；
+//   - msg_id 与 msg_seq 联合去重，相同的 msg_id + msg_seq 重复发送会失败。
+//
+// 我们的策略是「每群 60 秒最多一次」，所以 msg_seq 固定写 1——同一个 msg_id 只
+// 可能被回一次，靠的是下面那道 60 秒闸，而不是自增序号。别把它改成自增：那只会
+// 绕开平台的去重保护，把「回过了」变成「再回一次」。
+//
+// 备注：GROUP_ADD_ROBOT（机器人被拉进群）也能用 event_id 做被动回复，本轮未做。
+func (g *Gateway) replyToMention(payload map[string]any) {
+	if g == nil || !g.cfg.ReplyOnMention || g.client == nil {
+		return
+	}
+	groupOpenID := groupOpenIDOf(payload)
+	msgID := stringValue(payload, "id")
+	if groupOpenID == "" || msgID == "" {
+		return
+	}
+	// 不回复机器人自己：群事件的 author 里带 bot 标记。
+	if boolValue(nestedValues(payload, "author"), "bot") {
+		return
+	}
+	if !g.mentionGate.allow(groupOpenID, g.now()) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), mentionReplyTimeout)
+	defer cancel()
+	if _, err := g.client.SendPassiveGroupMessage(ctx, groupOpenID, msgID, mentionReplyText, messageFormatText); err != nil {
+		// 回复失败只是少一句说明：群 ID 认领已经在前面完成，不能被它拖累。
+		g.log.Warnf("qq-bot: 群 %s 的 @ 回复失败：%s", maskGroupID(groupOpenID), adminReason(err))
+		return
+	}
+	g.log.Infof("qq-bot: 已在群 %s 回复一次 @（被动消息）", maskGroupID(groupOpenID))
+}
+
+// boolValue 读一个布尔字段；网关载荷是普通 JSON，值就是 bool。
+func boolValue(values map[string]any, key string) bool {
+	if values == nil {
+		return false
+	}
+	flag, ok := values[key].(bool)
+	return ok && flag
+}
+
+// mentionReplyGate 记录每个群上一次被动回复的时间。进程内、重启即清空——刷屏
+// 防护不需要跨重启精确。
+type mentionReplyGate struct {
+	mu   sync.Mutex
+	last map[string]time.Time
+}
+
+func newMentionReplyGate() *mentionReplyGate {
+	return &mentionReplyGate{last: make(map[string]time.Time, 8)}
+}
+
+// allow 报告这个群现在能不能回，并在放行时**先占位**：发送失败也不该在 60 秒内
+// 重试，那只会把一次故障放大成刷屏。
+func (g *mentionReplyGate) allow(groupOpenID string, now time.Time) bool {
+	if g == nil || groupOpenID == "" {
+		return false
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if last, ok := g.last[groupOpenID]; ok && now.Sub(last) < mentionReplyCooldown {
+		return false
+	}
+	// 顺手清掉过期键：群数量有限，但一张永不清的 map 迟早会被问「为什么不清理」。
+	for id, at := range g.last {
+		if now.Sub(at) >= mentionReplyCooldown {
+			delete(g.last, id)
+		}
+	}
+	g.last[groupOpenID] = now
+	return true
 }
 
 func readSessionID(raw json.RawMessage) string {

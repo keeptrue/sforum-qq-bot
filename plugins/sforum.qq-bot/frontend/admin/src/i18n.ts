@@ -1,4 +1,20 @@
 const zhCN = {
+  'account.title': '当前账号',
+  'account.refresh': '刷新',
+  'account.refreshing': '刷新中…',
+  'account.loading': '正在读取…',
+  'account.unavailable': '状态暂不可用',
+  'account.noBot': '未获取到机器人信息',
+  'account.appId': 'AppID',
+  'account.credentialsMissing': '尚未配置凭据',
+  'account.state.connected': '已连接',
+  'account.state.connecting': '连接中',
+  'account.state.disabled': '未启用',
+  'account.state.unauthorized': '授权失败',
+  'account.state.error': '连接异常',
+  'account.groups': '已识别群 {recognized} · 白名单 {whitelisted}',
+  'account.groupsJump': '跳到群 ID 列表',
+
   'bind.title': '绑定 QQ 机器人',
   'bind.hint': '用手机 QQ 扫码，AppID 与 AppSecret 会自动填好并保存；也可以手动填写。',
   'bind.start': '扫码绑定',
@@ -105,6 +121,22 @@ const zhCN = {
 export type MessageKey = keyof typeof zhCN
 
 const enUS: Record<MessageKey, string> = {
+  'account.title': 'Current account',
+  'account.refresh': 'Refresh',
+  'account.refreshing': 'Refreshing…',
+  'account.loading': 'Reading…',
+  'account.unavailable': 'Status unavailable',
+  'account.noBot': 'Bot information unavailable',
+  'account.appId': 'AppID',
+  'account.credentialsMissing': 'Credentials not configured',
+  'account.state.connected': 'Connected',
+  'account.state.connecting': 'Connecting',
+  'account.state.disabled': 'Disabled',
+  'account.state.unauthorized': 'Unauthorized',
+  'account.state.error': 'Connection error',
+  'account.groups': '{recognized} recognized · {whitelisted} whitelisted',
+  'account.groupsJump': 'Jump to the group ID list',
+
   'bind.title': 'Connect the QQ bot',
   'bind.hint': 'Scan with mobile QQ and AppID plus AppSecret are filled in and saved for you. You can also type them by hand.',
   'bind.start': 'Scan to connect',
