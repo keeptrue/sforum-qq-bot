@@ -3,6 +3,11 @@
 设计取舍、核对结论与踩过的坑。面向「下一个接手的人」，不是用户文档（那是
 `README.md`）也不是接手速查（那是 `AGENTS.md`）。
 
+本文件在**仓库根**，不在扩展包树 `plugins/sforum.qq-bot/` 内，也不在清单的 `packageFiles` 里——
+改它**不改变包摘要**（`backend.digest` 与 `packageFiles[].digest` 都不动），不需要重跑
+`prepare-package.sh`；`AGENTS.md` / `README.md` / `CHANGELOG.md` 同理。只有 `plugins/sforum.qq-bot/`
+里的文件才进摘要。
+
 > 后台反复提示「重新授权」、`backend.digest` 在两个值之间来回跳？先看 §11：
 > 那是宿主 dev 构建与本仓库发布构建的口径差异，不是 bug。
 
@@ -407,7 +412,7 @@ ExpiresIn int `json:"expires_in"`   // 平台实际返回的是字符串
 报错且不回显字段值）；取凭证的错误文案拆成「不是 JSON（带 HTTP 状态、Content-Type、
 字节数）」「字段形状不对」「没有返回 access_token」三种，body 原文与 token 一律不进错误。
 
-**教训（比修法本身更值钱）**：所有单测夹具当时都用 `"expires_in": 7200`（数字），于是
+**教训（比修法本身更值钱）**：取凭证相关的单测夹具当时都用 `"expires_in": 7200`（数字），于是
 **夹具的假形状掩盖了平台的真实形状**。以后凡是外部接口的字段，夹具至少覆盖两种：文档
 写的那种、以及实测抓到的那种。没有实测样本时，宁可按「两种都可能」写解析（`flexInt`
 就是这种形状），也不要按文档赌一次。
@@ -416,8 +421,8 @@ ExpiresIn int `json:"expires_in"`   // 平台实际返回的是字符串
 
 | 位置 | 字段 | 判断 |
 | --- | --- | --- |
-| `backend/bind.go:236` | `Retcode int` | q.qq.com lite 两个端点（`/lite/create_bind_task`、`/lite/poll_bind_result`）**没有官方文档**，字段形状只来自本仓库调研附录（`docs/qq-api-v2-capabilities.md` §11.1 写的是 `"status": 0` 数字）。若平台改成 `"status":"2"`，症状与本次 token 事故一模一样：外层信封解不开或轮询落到「扫码服务返回了未知的绑定状态」。修法同 `flexInt`，但会牵动 bindstore / 路由层的状态判断与既有测试，**当前无线上证据，留待办**。 |
-| `backend/bind.go:289` | `Status int` | 同上，轮询状态码。 |
+| `backend/bind.go:236` | `Retcode int` | q.qq.com lite 两个端点（`/lite/create_bind_task`、`/lite/poll_bind_result`）**没有官方 wiki 页**，字段来自官方 npm SDK（`@tencent-connect/qqbot-connector@1.2.0`）的调研附录 `docs/qq-api-v2-capabilities.md` §11（该节开头自述「本节不是官方 wiki 内容」；§11.1 记的是 `"status": 0` 数字）。若平台改成 `"status":"2"`，症状与本次 token 事故一模一样：外层信封解不开或轮询落到「扫码服务返回了未知的绑定状态」。修法同 `flexInt`，但会牵动 bindstore / 路由层的状态判断与既有测试，**当前无线上证据，留待办**。 |
+| `backend/bind.go:177` | `Status int` | 同上，`poll_bind_result` 的 data 里那个轮询状态码。 |
 | `backend/gateway.go:83-84` | `Op int` / `S int64` | 官方 gateway 文档明确是数字；且形状变了会先在连接层暴露（心跳/续接直接失败），不会像 token 那样静默卡死。暂不动。 |
 | `backend/gateway.go:360` | `heartbeat_interval int64` | 同上，官方文档明确是数字。暂不动。 |
 
