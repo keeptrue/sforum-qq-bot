@@ -16,6 +16,9 @@ export type PreviewResponse = {
   text?: unknown
   truncated?: unknown
   unknownVariables?: unknown
+  source?: unknown
+  characters?: unknown
+  sampleUsed?: unknown
 }
 
 export type TestPushResponse = {

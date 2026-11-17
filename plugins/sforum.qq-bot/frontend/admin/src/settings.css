@@ -298,6 +298,13 @@
   background: color-mix(in srgb, var(--qq-danger) 12%, transparent);
 }
 
+/* A state label that must not read as a warning: the draft badge. */
+.qqbot-badge--quiet {
+  border-color: var(--qq-border);
+  background: transparent;
+  color: var(--qq-muted);
+}
+
 /* ---------- template presets ---------- */
 
 .qqbot-presets {
@@ -523,6 +530,32 @@
   gap: 0.5rem;
   padding: 0.5rem 0.8rem;
   border-bottom: 1px dashed color-mix(in srgb, var(--qq-text) 16%, transparent);
+}
+
+/* Saved/draft divergence: shown above the rendered text, never as a page banner. */
+.qqbot-preview__notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.8rem;
+  border-bottom: 1px dashed color-mix(in srgb, var(--qq-text) 16%, transparent);
+  background: color-mix(in srgb, var(--qq-accent) 7%, transparent);
+}
+
+.qqbot-preview__dirty {
+  flex: 1 1 16rem;
+  min-width: 0;
+  color: var(--qq-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.qqbot-preview__mode {
+  flex: none;
+  min-height: 1.8rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
 }
 
 .qqbot-preview__title {

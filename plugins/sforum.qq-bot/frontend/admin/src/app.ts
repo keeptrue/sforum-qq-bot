@@ -77,9 +77,15 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
   const itemList = (bridge.settings.items ?? []) as readonly SettingItem[]
   const items = new Map<string, SettingItem>()
   const draft: Record<string, string> = {}
+  // The saved baseline the preview compares against. Seeded from the payload
+  // the host sent (item.value is the stored value) and refreshed after
+  // save/reset — see AppContext.savedValues for why values() cannot do this.
+  const savedValues: Record<string, string> = {}
   for (const item of itemList) {
     items.set(item.key, item)
-    draft[item.key] = typeof item.value === 'string' ? item.value : (item.default ?? '')
+    const initial = typeof item.value === 'string' ? item.value : (item.default ?? '')
+    draft[item.key] = initial
+    savedValues[item.key] = initial
   }
 
   // One banner, four honest copies: "not enabled" and "you lack the permission"
@@ -100,6 +106,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
   const controls = new Map<string, FieldControl>()
   const inputListeners = new Map<string, Set<() => void>>()
   const secretListeners = new Set<() => void>()
+  const savedListeners = new Set<() => void>()
 
   const notifyInput = (key: string) => {
     const listeners = inputListeners.get(key)
@@ -121,6 +128,7 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
     t,
     zh: i18n.zh,
     draft,
+    savedValues,
     disposed: false,
     // secretSet is the host telling us "a secret is stored"; the value itself is
     // never sent back. The input stays empty and the draft keeps the host value.
@@ -182,8 +190,16 @@ export function createApp(bridge: AdminMicroFrontendBridgeV1): SettingsApp {
         if (control) writeControl(control, next)
         if (PREVIEW_KEYS.includes(key)) previewDirty = true
       }
+      // The host re-seeds its form values from the save/reset response, so what
+      // it reports now is the new saved state; move the baseline with it.
+      for (const key of Object.keys(savedValues)) {
+        const next = values[key]
+        if (typeof next === 'string') savedValues[key] = next
+      }
+      for (const listener of savedListeners) listener()
       if (previewDirty) notifyInput('message_template')
     },
+    onSavedChange: listener => { savedListeners.add(listener) },
     markSecretSaved: () => {
       ctx.secretSaved = true
       for (const listener of secretListeners) listener()

@@ -135,10 +135,15 @@ function createPreview(ctx: AppContext) {
   const titleId = 'qqbot-preview-title'
   const body = el('pre', { class: 'qqbot-preview__body' })
   const count = el('span', { class: 'qqbot-count' })
+  const badge = el('span', { class: 'qqbot-badge' })
   const truncated = el('span', { class: 'qqbot-badge qqbot-badge--warn' }, ctx.t('template.truncated'))
   truncated.hidden = true
   const unknown = el('p', { class: 'qqbot-preview__unknown' })
   unknown.hidden = true
+  const dirtyText = el('p', { class: 'qqbot-preview__dirty' })
+  const toggle = el('button', { type: 'button', class: 'qqbot-btn qqbot-btn--ghost qqbot-preview__mode' })
+  const notice = el('div', { class: 'qqbot-preview__notice' }, dirtyText, toggle)
+  notice.hidden = true
   // Screen-reader announcement only: the visible character count is right here.
   const live = el('p', { class: 'qqbot-sr-only', role: 'status', 'aria-live': 'polite' })
 
@@ -149,9 +154,11 @@ function createPreview(ctx: AppContext) {
       'header',
       { class: 'qqbot-preview__head' },
       el('h4', { class: 'qqbot-preview__title', id: titleId }, ctx.t('template.preview')),
+      badge,
       count,
       truncated
     ),
+    notice,
     body,
     unknown,
     live
@@ -159,35 +166,85 @@ function createPreview(ctx: AppContext) {
 
   let timer: number | undefined
   let sequence = 0
+  let mode: 'saved' | 'draft' = 'saved'
+  // The last payload actually asked for. Saved mode sends a constant payload,
+  // so without this every keystroke would re-ask the rate-limited route for an
+  // answer that cannot have changed.
+  let lastKey = ''
+  let lastOk = false
 
-  const setText = (text: string) => {
-    const empty = text === ''
-    body.classList.toggle('is-empty', empty)
-    body.textContent = empty ? ctx.t('template.previewEmpty') : text
-    const characters = Array.from(text).length
-    count.textContent = ctx.t('template.count', { n: characters })
-    live.textContent = ctx.t('template.live', { n: characters })
+  // PREVIEW_KEYS is also the set of keys that change what gets rendered, which
+  // is what the saved/draft comparison has to look at.
+  const isDirty = () => PREVIEW_KEYS.some(key => (ctx.getValue(key) ?? '') !== (ctx.savedValues[key] ?? ''))
+
+  /** Repaints the mode badge and the dirty hint; returns whether the draft is being previewed. */
+  const paint = () => {
+    const dirty = isDirty()
+    const draftMode = dirty && mode === 'draft'
+    badge.textContent = ctx.t(draftMode ? 'template.previewDraftBadge' : 'template.previewSavedBadge')
+    badge.classList.toggle('qqbot-badge--quiet', draftMode)
+    notice.hidden = !dirty
+    toggle.hidden = !dirty
+    if (dirty) {
+      dirtyText.textContent = ctx.t(draftMode ? 'template.previewDirtyDraft' : 'template.previewDirty')
+      toggle.textContent = ctx.t(draftMode ? 'template.previewUseSaved' : 'template.previewUseDraft')
+    }
+    return draftMode
   }
 
-  const run = async () => {
-    const mine = ++sequence
+  /**
+   * Saved mode carries no draft field at all: the route renders the stored
+   * settings, which is what a push would actually send.
+   */
+  const buildPayload = (draftMode: boolean): Record<string, unknown> => {
+    if (!draftMode) return { source: 'saved' }
     const excerptLimit = optionalInt(ctx.getValue('excerpt_limit'))
     const maxMessageChars = optionalInt(ctx.getValue('max_message_chars'))
-    const payload = {
+    return {
+      source: 'draft',
       template: ctx.getValue('message_template'),
       format: ctx.getValue('message_format') || 'text',
       signature: ctx.getValue('signature'),
       ...(excerptLimit === undefined ? {} : { excerptLimit }),
       ...(maxMessageChars === undefined ? {} : { maxMessageChars })
     }
+  }
+
+  const setText = (text: string, characters: number) => {
+    const empty = text === ''
+    body.classList.toggle('is-empty', empty)
+    body.textContent = empty ? ctx.t('template.previewEmpty') : text
+    count.textContent = ctx.t('template.count', { n: characters })
+    live.textContent = ctx.t('template.live', { n: characters })
+  }
+
+  const run = async () => {
+    const mine = ++sequence
+    const draftMode = paint()
+    const payload = buildPayload(draftMode)
+    const key = JSON.stringify(payload)
+    if (key === lastKey && lastOk) return
+    lastKey = key
+    lastOk = false
     try {
-      const response = await ctx.request<PreviewResponse>('/preview', { method: 'POST', body: payload })
+      // bridge.request rather than ctx.request: a preview failure degrades to
+      // the one line below and must not paint the page-level error banner.
+      const response = await ctx.bridge.request<PreviewResponse>('/preview', {
+        method: 'POST',
+        body: payload,
+        responseMode: 'body'
+      })
       if (mine !== sequence || ctx.disposed) return
       const text = typeof response?.text === 'string' ? response.text : ''
       const variables = Array.isArray(response?.unknownVariables)
         ? response.unknownVariables.filter((value): value is string => typeof value === 'string' && value !== '')
         : []
-      setText(text)
+      // The route counts characters after truncation; only fall back to the
+      // local count when it does not report one (older backend).
+      const reported = typeof response?.characters === 'number' && Number.isFinite(response.characters) && response.characters >= 0
+        ? Math.floor(response.characters)
+        : Array.from(text).length
+      setText(text, reported)
       truncated.hidden = response?.truncated !== true
       unknown.hidden = variables.length === 0
       if (variables.length > 0) {
@@ -196,6 +253,7 @@ function createPreview(ctx: AppContext) {
           ...variables.map(name => el('code', { class: 'qqbot-preview__var' }, `{{${name}}}`))
         )
       }
+      lastOk = true
       return true
     } catch {
       if (mine !== sequence || ctx.disposed) return false
@@ -216,9 +274,25 @@ function createPreview(ctx: AppContext) {
     }, delay)
   }
 
+  toggle.addEventListener('click', () => {
+    mode = mode === 'draft' ? 'saved' : 'draft'
+    schedule(0)
+  })
+
+  ctx.onSavedChange(() => {
+    // Save or reset moved the baseline: back to "what will actually be sent",
+    // and the previous answer is stale even though the payload looks the same.
+    mode = 'saved'
+    lastKey = ''
+    lastOk = false
+    schedule(0)
+  })
+
   // Listeners are registered per key, so it does not matter that
   // max_message_chars lives in a section rendered after this one.
+  ctx.onInput(PREVIEW_KEYS, () => { paint() })
   ctx.onInput(PREVIEW_KEYS, schedule)
+  paint()
   schedule(0)
 
   return {

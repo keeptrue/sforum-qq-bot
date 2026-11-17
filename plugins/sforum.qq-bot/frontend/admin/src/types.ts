@@ -26,6 +26,14 @@ export type AppContext = {
   t: (key: MessageKey, params?: Record<string, string | number>) => string
   zh: boolean
   draft: Record<string, string>
+  /**
+   * Render-affecting values as the host last handed them back (the saved
+   * settings). The host's own `settings.values()` cannot serve this purpose:
+   * it is the live form state that our own writes keep in sync
+   * (apps/web app/pages/admin/extensions/[extensionId]/pages/[...pagePath].vue
+   * passes `values: formValues` and `updateValue` writes into the same object).
+   */
+  savedValues: Record<string, string>
   disposed: boolean
   secretSaved: boolean
   item: (key: string) => SettingItem | undefined
@@ -39,6 +47,8 @@ export type AppContext = {
   focus: (key: string) => void
   /** Re-read the host draft after save/reset so the form never shows stale values. */
   syncFromBridge: () => void
+  /** Fires after save/reset, once the saved baseline above has been refreshed. */
+  onSavedChange: (listener: () => void) => void
   markSecretSaved: () => void
   onSecretSavedChange: (listener: () => void) => void
 }

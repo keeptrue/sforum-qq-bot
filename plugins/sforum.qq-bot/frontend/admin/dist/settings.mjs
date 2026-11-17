@@ -739,11 +739,11 @@ function me(e) {
 		return null;
 	}
 }
-function P(e) {
+function he(e) {
 	let t = Math.max(0, Math.floor(e)), n = Math.floor(t / 60);
 	return `${String(n).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 }
-function F(t) {
+function P(t) {
 	let n = "qqbot-bind-title", r = e("div", { class: "qqbot-bind__body" }), i = e("p", {
 		class: "qqbot-live",
 		role: "status",
@@ -757,7 +757,7 @@ function F(t) {
 	}, t.t("bind.title")), e("p", { class: "qqbot-card__hint" }, t.t("bind.hint"))), r, i), o = t.getValue("app_id") !== "" || t.secretSaved ? "ready" : "idle", s = t.getValue("app_id"), c = "", l = "", u = 0, d = 0, f = 0, p, m, h = null, g = null, _ = () => {
 		p !== void 0 && window.clearInterval(p), m !== void 0 && window.clearInterval(m), p = void 0, m = void 0, h = null;
 	}, v = () => {
-		h && (h.textContent = t.t("bind.expires", { time: P((u - Date.now()) / 1e3) }));
+		h && (h.textContent = t.t("bind.expires", { time: he((u - Date.now()) / 1e3) }));
 	}, y = (t, n, r) => {
 		let i = e("button", {
 			type: "button",
@@ -874,14 +874,14 @@ function F(t) {
 	};
 }
 // src/footer.ts
-var I = 4e3;
-function L(e) {
+var F = 4e3;
+function I(e) {
 	return (/* @__PURE__ */ new Date()).toLocaleTimeString(e.zh ? "zh-CN" : "en-US", {
 		hour: "2-digit",
 		minute: "2-digit"
 	});
 }
-function R(t) {
+function L(t) {
 	let n = "qqbot-footer-title", r = e("pre", { class: "qqbot-output" });
 	r.hidden = !0;
 	let i = e("p", {
@@ -918,13 +918,13 @@ function R(t) {
 		c !== void 0 && window.clearTimeout(c), c = void 0, s = !1, m();
 	};
 	function v() {
-		o || (s ? b() : (s = !0, m(), c = window.setTimeout(_, I)));
+		o || (s ? b() : (s = !0, m(), c = window.setTimeout(_, F)));
 	}
 	async function y() {
 		if (!o) {
 			o = "save", m();
 			try {
-				await t.bridge.settings.save(), t.syncFromBridge(), i.textContent = `${t.t("footer.savedAt", { time: L(t) })}`;
+				await t.bridge.settings.save(), t.syncFromBridge(), i.textContent = `${t.t("footer.savedAt", { time: I(t) })}`;
 			} catch {
 				g(t.t("error.generic"), "bad"), i.textContent = t.t("error.generic");
 			} finally {
@@ -936,7 +936,7 @@ function R(t) {
 		if (!o) {
 			_(), o = "reset", m();
 			try {
-				await t.bridge.settings.reset(), t.syncFromBridge(), i.textContent = t.t("footer.resetDone", { time: L(t) });
+				await t.bridge.settings.reset(), t.syncFromBridge(), i.textContent = t.t("footer.resetDone", { time: I(t) });
 			} catch {
 				g(t.t("error.generic"), "bad"), i.textContent = t.t("error.generic");
 			} finally {
@@ -984,11 +984,11 @@ function R(t) {
 	};
 }
 // src/form.ts
-var z = {
+var R = {
 	group_ids: 4,
 	category_filter: 4,
 	message_template: 10
-}, he = {
+}, ge = {
 	excerpt_limit: {
 		min: 0,
 		max: 5e3,
@@ -1020,16 +1020,16 @@ var z = {
 		step: 1
 	}
 };
-function B(e) {
+function z(e) {
 	return e instanceof HTMLInputElement && e.type === "checkbox" ? e.checked ? "true" : "false" : e.value;
 }
-function V(t, n) {
+function B(t, n) {
 	return t.description ? e("p", {
 		class: "qqbot-field__desc",
 		id: n
 	}, t.description) : null;
 }
-function H(t, n) {
+function V(t, n) {
 	let r = t.item(n);
 	if (!r) return null;
 	let i = `sforum-qqbot-${n}`, a = `${i}-desc`, o = r.description ? { "aria-describedby": a } : {};
@@ -1046,8 +1046,8 @@ function H(t, n) {
 		}, e("label", {
 			class: "qqbot-check",
 			for: i
-		}, s, e("span", {}, r.label || n)), V(r, a));
-		return t.registerControl(n, s, () => B(s)), {
+		}, s, e("span", {}, r.label || n)), B(r, a));
+		return t.registerControl(n, s, () => z(s)), {
 			root: c,
 			control: s,
 			item: r
@@ -1070,7 +1070,7 @@ function H(t, n) {
 	} else if (r.type === "textarea") {
 		let a = e("textarea", {
 			id: i,
-			rows: z[n] ?? 3,
+			rows: R[n] ?? 3,
 			class: n === "message_template" ? "qqbot-input qqbot-input--mono" : "qqbot-input",
 			placeholder: r.placeholder || "",
 			spellcheck: "false",
@@ -1078,7 +1078,7 @@ function H(t, n) {
 		});
 		a.value = t.getValue(n), s = a;
 	} else if (r.type === "number") {
-		let r = he[n], a = e("input", {
+		let r = ge[n], a = e("input", {
 			type: "number",
 			id: i,
 			class: "qqbot-input",
@@ -1118,23 +1118,23 @@ function H(t, n) {
 	}, e("div", { class: "qqbot-field__head" }, e("label", {
 		class: "qqbot-field__label",
 		for: i
-	}, r.label || n), l), s, c, V(r, a));
+	}, r.label || n), l), s, c, B(r, a));
 	if (r.type === "secret") {
 		let e = s;
 		t.onSecretSavedChange(() => {
 			e.placeholder = t.secretSaved ? t.t("field.keepSecret") : t.t("field.secretPlaceholder"), l && (l.hidden = !t.secretSaved);
 		});
 	}
-	return t.registerControl(n, s, () => B(s)), {
+	return t.registerControl(n, s, () => z(s)), {
 		root: u,
 		control: s,
 		item: r
 	};
 }
-function U(t, n) {
+function H(t, n) {
 	let r = `qqbot-section-${n.id}`, i = e("div", { class: "qqbot-grid" });
 	for (let e of n.keys) {
-		let n = H(t, e);
+		let n = V(t, e);
 		n && i.append(n.root);
 	}
 	return e("section", {
@@ -1146,32 +1146,32 @@ function U(t, n) {
 	}, n.title), n.hint ? e("p", { class: "qqbot-card__hint" }, n.hint) : null), i);
 }
 // src/groups-card.ts
-var W = "group_ids", ge = 6, _e = {
+var U = "group_ids", _e = 6, ve = {
 	year: "numeric",
 	month: "2-digit",
 	day: "2-digit",
 	hour: "2-digit",
 	minute: "2-digit"
 };
-function G(e) {
+function W(e) {
 	return typeof e == "string" ? e : "";
 }
-function K(e) {
+function G(e) {
 	return typeof e == "number" && Number.isFinite(e) && e > 0 ? Math.floor(e) : 0;
 }
-function q(e) {
+function K(e) {
 	return e.split(",").map((e) => e.trim());
 }
-function J(e, t) {
-	return e.split("\n").some((e) => q(e).some((e) => e === t));
-}
-function ve(e, t) {
-	return `${e}${e === "" || e.endsWith("\n") ? "" : "\n"}${t}`;
+function q(e, t) {
+	return e.split("\n").some((e) => K(e).some((e) => e === t));
 }
 function ye(e, t) {
+	return `${e}${e === "" || e.endsWith("\n") ? "" : "\n"}${t}`;
+}
+function be(e, t) {
 	let n = [];
 	for (let r of e.split("\n")) {
-		let e = q(r);
+		let e = K(r);
 		if (!e.some((e) => e === t)) {
 			n.push(r);
 			continue;
@@ -1182,26 +1182,26 @@ function ye(e, t) {
 	let r = n.join("\n");
 	return e.endsWith("\n") && r !== "" && !r.endsWith("\n") ? `${r}\n` : r;
 }
-function be(e) {
+function xe(e) {
 	if (!Array.isArray(e)) return [];
 	let t = [];
 	for (let n of e) {
 		if (!n || typeof n != "object") continue;
-		let e = n, r = G(e.openid).trim();
+		let e = n, r = W(e.openid).trim();
 		if (r === "") continue;
-		let i = G(e.name).trim(), a = G(e.lastSeenAt), o = Date.parse(a);
+		let i = W(e.name).trim(), a = W(e.lastSeenAt), o = Date.parse(a);
 		t.push({
 			openid: r,
 			name: i,
 			nameUnavailable: e.nameUnavailable === !0,
-			count: K(e.count),
+			count: G(e.count),
 			lastSeen: Number.isFinite(o) ? o : -Infinity,
 			lastSeenText: a
 		});
 	}
 	return t.sort((e, t) => t.lastSeen - e.lastSeen);
 }
-function xe(t) {
+function Se(t) {
 	let n = "qqbot-groups-title", r = e("p", {
 		class: "qqbot-groups__status",
 		role: "status",
@@ -1225,14 +1225,14 @@ function xe(t) {
 	}, f = (e) => {
 		r.textContent = e;
 	}, p = () => {
-		let e = t.getValue(W);
-		for (let [t, n] of c) n.checked = J(e, t);
+		let e = t.getValue(U);
+		for (let [t, n] of c) n.checked = q(e, t);
 	}, m = (e, n) => {
-		let r = t.getValue(W);
-		t.setValue(W, n.checked ? ve(r, e) : ye(r, e)), p();
-	}, h = (e) => e.name !== "" && !e.nameUnavailable ? e.name : `${e.openid.slice(0, ge)}…`, g = (e) => {
+		let r = t.getValue(U);
+		t.setValue(U, n.checked ? ye(r, e) : be(r, e)), p();
+	}, h = (e) => e.name !== "" && !e.nameUnavailable ? e.name : `${e.openid.slice(0, _e)}…`, g = (e) => {
 		let n = Date.parse(e.lastSeenText);
-		return Number.isFinite(n) ? new Date(n).toLocaleString(t.zh ? "zh-CN" : "en-US", _e) : e.lastSeenText;
+		return Number.isFinite(n) ? new Date(n).toLocaleString(t.zh ? "zh-CN" : "en-US", ve) : e.lastSeenText;
 	}, _ = (n) => {
 		c.clear(), a.replaceChildren(), n.forEach((n, r) => {
 			let i = `qqbot-group-${r}`, o = e("input", {
@@ -1240,7 +1240,7 @@ function xe(t) {
 				id: i,
 				class: "qqbot-groups__box"
 			});
-			o.checked = J(t.getValue(W), n.openid), o.addEventListener("change", () => m(n.openid, o)), c.set(n.openid, o), a.append(e("li", { class: "qqbot-groups__row" }, o, e("label", {
+			o.checked = q(t.getValue(U), n.openid), o.addEventListener("change", () => m(n.openid, o)), c.set(n.openid, o), a.append(e("li", { class: "qqbot-groups__row" }, o, e("label", {
 				class: "qqbot-groups__label",
 				for: i
 			}, e("span", {
@@ -1252,7 +1252,7 @@ function xe(t) {
 			})))));
 		}), a.hidden = n.length === 0;
 	}, v = (e) => {
-		let n = be(e?.groups), r = e?.claimEnabled !== !1, i = K(e?.recordingLimit);
+		let n = xe(e?.groups), r = e?.claimEnabled !== !1, i = G(e?.recordingLimit);
 		_(n), r ? n.length === 0 ? d(t.t("groups.empty")) : i > 0 && n.length >= i ? d(t.t("groups.limit", { n: i })) : d("") : d(t.t("groups.claimOff")), f(t.t("groups.updated", { n: n.length }));
 	}, y = () => {
 		c.clear(), a.replaceChildren(), a.hidden = !0, d(t.t("groups.unavailable")), f(t.t("groups.unavailable"));
@@ -1278,7 +1278,7 @@ function xe(t) {
 	};
 	return o.addEventListener("click", () => {
 		b();
-	}), t.onInput([W], p), b(), {
+	}), t.onInput([U], p), b(), {
 		root: s,
 		destroy: () => {
 			u += 1, c.clear(), s.remove();
@@ -1286,7 +1286,7 @@ function xe(t) {
 	};
 }
 // src/i18n.ts
-var Se = {
+var Ce = {
 	"bind.title": "绑定 QQ 机器人",
 	"bind.hint": "用手机 QQ 扫码，AppID 与 AppSecret 会自动填好并保存；也可以手动填写。",
 	"bind.start": "扫码绑定",
@@ -1336,6 +1336,12 @@ var Se = {
 	"template.tokens": "可用变量（点击插入到光标处）",
 	"template.tokensHint": "中文别名同样有效，例如 {{标题}}。不认识的变量会原样保留，方便你对照检查。",
 	"template.preview": "预览",
+	"template.previewSavedBadge": "将实际发送",
+	"template.previewDraftBadge": "草稿预览",
+	"template.previewDirty": "草稿与已保存配置不同，当前预览是按已保存配置渲染的；点保存后才会这样发出去。",
+	"template.previewDirtyDraft": "当前预览按草稿渲染，还没有保存；点保存后才会这样发出去。",
+	"template.previewUseDraft": "按草稿预览",
+	"template.previewUseSaved": "按已保存预览",
 	"template.previewEmpty": "（模板为空，渲染结果也是空的）",
 	"template.previewFailed": "预览暂时不可用；保存后推送仍会正常渲染。",
 	"template.truncated": "已截断",
@@ -1368,7 +1374,7 @@ var Se = {
 	"error.serviceDetail": "后端可能刚重启或返回了错误；稍后再试，原始错误不会显示在这里。",
 	"error.generic": "操作没有成功，请重试。",
 	"error.saveFailed": "扫码成功，但自动保存没有生效，请检查后在页面底部手动保存。"
-}, Ce = {
+}, we = {
 	"bind.title": "Connect the QQ bot",
 	"bind.hint": "Scan with mobile QQ and AppID plus AppSecret are filled in and saved for you. You can also type them by hand.",
 	"bind.start": "Scan to connect",
@@ -1418,6 +1424,12 @@ var Se = {
 	"template.tokens": "Variables (click to insert at the cursor)",
 	"template.tokensHint": "Chinese aliases work too, e.g. {{标题}}. Unknown variables are left untouched so you can spot typos.",
 	"template.preview": "Preview",
+	"template.previewSavedBadge": "What gets sent",
+	"template.previewDraftBadge": "Draft preview",
+	"template.previewDirty": "The draft differs from the saved settings, so this preview renders the saved ones; only saving makes it go out like this.",
+	"template.previewDirtyDraft": "This preview renders the draft, which is not saved yet; save it to go out like this.",
+	"template.previewUseDraft": "Preview the draft",
+	"template.previewUseSaved": "Preview the saved settings",
 	"template.previewEmpty": "(the template is empty, so the rendered message is empty)",
 	"template.previewFailed": "The preview is unavailable right now; pushes still render it.",
 	"template.truncated": "Truncated",
@@ -1451,8 +1463,8 @@ var Se = {
 	"error.generic": "That did not work. Please try again.",
 	"error.saveFailed": "Scanned, but the automatic save did not take effect. Check the form and save it at the bottom of the page."
 };
-function we(e) {
-	let t = (e || "").toLowerCase().startsWith("zh"), n = t ? Se : Ce;
+function Te(e) {
+	let t = (e || "").toLowerCase().startsWith("zh"), n = t ? Ce : we;
 	return {
 		zh: t,
 		t: (e, t) => {
@@ -1463,7 +1475,7 @@ function we(e) {
 	};
 }
 // src/template.ts
-var Te = [
+var Ee = [
 	{
 		token: "title",
 		alias: "标题"
@@ -1500,7 +1512,7 @@ var Te = [
 		token: "signature",
 		alias: "签名"
 	}
-], Ee = [
+], J = [
 	"message_template",
 	"message_format",
 	"signature",
@@ -1533,7 +1545,7 @@ function ke(e, t) {
 }
 function Ae(t, n) {
 	let r = e("div", { class: "qqbot-chips" });
-	for (let i of Te) {
+	for (let i of Ee) {
 		let a = `{{${i.token}}}`, o = e("button", {
 			type: "button",
 			class: "qqbot-chip",
@@ -1571,70 +1583,91 @@ function X(t, n) {
 	}, t.t("template.presets")), i);
 }
 function je(t) {
-	let n = "qqbot-preview-title", r = e("pre", { class: "qqbot-preview__body" }), i = e("span", { class: "qqbot-count" }), a = e("span", { class: "qqbot-badge qqbot-badge--warn" }, t.t("template.truncated"));
-	a.hidden = !0;
-	let o = e("p", { class: "qqbot-preview__unknown" });
+	let n = "qqbot-preview-title", r = e("pre", { class: "qqbot-preview__body" }), i = e("span", { class: "qqbot-count" }), a = e("span", { class: "qqbot-badge" }), o = e("span", { class: "qqbot-badge qqbot-badge--warn" }, t.t("template.truncated"));
 	o.hidden = !0;
-	let s = e("p", {
+	let s = e("p", { class: "qqbot-preview__unknown" });
+	s.hidden = !0;
+	let c = e("p", { class: "qqbot-preview__dirty" }), l = e("button", {
+		type: "button",
+		class: "qqbot-btn qqbot-btn--ghost qqbot-preview__mode"
+	}), u = e("div", { class: "qqbot-preview__notice" }, c, l);
+	u.hidden = !0;
+	let d = e("p", {
 		class: "qqbot-sr-only",
 		role: "status",
 		"aria-live": "polite"
-	}), c = e("div", {
+	}), f = e("div", {
 		class: "qqbot-preview",
 		"aria-labelledby": n
 	}, e("header", { class: "qqbot-preview__head" }, e("h4", {
 		class: "qqbot-preview__title",
 		id: n
-	}, t.t("template.preview")), i, a), r, o, s), l, u = 0, d = (e) => {
-		let n = e === "";
-		r.classList.toggle("is-empty", n), r.textContent = n ? t.t("template.previewEmpty") : e;
-		let a = Array.from(e).length;
-		i.textContent = t.t("template.count", { n: a }), s.textContent = t.t("template.live", { n: a });
-	}, f = async () => {
-		let n = ++u, s = Y(t.getValue("excerpt_limit")), c = Y(t.getValue("max_message_chars")), l = {
+	}, t.t("template.preview")), a, i, o), u, r, s, d), p, m = 0, h = "saved", g = "", _ = !1, v = () => J.some((e) => (t.getValue(e) ?? "") !== (t.savedValues[e] ?? "")), y = () => {
+		let e = v(), n = e && h === "draft";
+		return a.textContent = t.t(n ? "template.previewDraftBadge" : "template.previewSavedBadge"), a.classList.toggle("qqbot-badge--quiet", n), u.hidden = !e, l.hidden = !e, e && (c.textContent = t.t(n ? "template.previewDirtyDraft" : "template.previewDirty"), l.textContent = t.t(n ? "template.previewUseSaved" : "template.previewUseDraft")), n;
+	}, b = (e) => {
+		if (!e) return { source: "saved" };
+		let n = Y(t.getValue("excerpt_limit")), r = Y(t.getValue("max_message_chars"));
+		return {
+			source: "draft",
 			template: t.getValue("message_template"),
 			format: t.getValue("message_format") || "text",
 			signature: t.getValue("signature"),
-			...s === void 0 ? {} : { excerptLimit: s },
-			...c === void 0 ? {} : { maxMessageChars: c }
+			...n === void 0 ? {} : { excerptLimit: n },
+			...r === void 0 ? {} : { maxMessageChars: r }
 		};
-		try {
-			let r = await t.request("/preview", {
-				method: "POST",
-				body: l
-			});
-			if (n !== u || t.disposed) return;
-			let i = typeof r?.text == "string" ? r.text : "", s = Array.isArray(r?.unknownVariables) ? r.unknownVariables.filter((e) => typeof e == "string" && e !== "") : [];
-			return d(i), a.hidden = r?.truncated !== !0, o.hidden = s.length === 0, s.length > 0 && o.replaceChildren(document.createTextNode(`${t.t("template.unknown")}: `), ...s.map((t) => e("code", { class: "qqbot-preview__var" }, `{{${t}}}`))), !0;
-		} catch {
-			return n !== u || t.disposed || (a.hidden = !0, o.hidden = !0, r.classList.add("is-empty"), r.textContent = t.t("template.previewFailed"), i.textContent = ""), !1;
+	}, x = (e, n) => {
+		let a = e === "";
+		r.classList.toggle("is-empty", a), r.textContent = a ? t.t("template.previewEmpty") : e, i.textContent = t.t("template.count", { n }), d.textContent = t.t("template.live", { n });
+	}, S = async () => {
+		let n = ++m, a = y(), c = b(a), l = JSON.stringify(c);
+		if (!(l === g && _)) {
+			g = l, _ = !1;
+			try {
+				let r = await t.bridge.request("/preview", {
+					method: "POST",
+					body: c,
+					responseMode: "body"
+				});
+				if (n !== m || t.disposed) return;
+				let i = typeof r?.text == "string" ? r.text : "", a = Array.isArray(r?.unknownVariables) ? r.unknownVariables.filter((e) => typeof e == "string" && e !== "") : [], l = typeof r?.characters == "number" && Number.isFinite(r.characters) && r.characters >= 0 ? Math.floor(r.characters) : Array.from(i).length;
+				return x(i, l), o.hidden = r?.truncated !== !0, s.hidden = a.length === 0, a.length > 0 && s.replaceChildren(document.createTextNode(`${t.t("template.unknown")}: `), ...a.map((t) => e("code", { class: "qqbot-preview__var" }, `{{${t}}}`))), _ = !0, !0;
+			} catch {
+				return n !== m || t.disposed || (o.hidden = !0, s.hidden = !0, r.classList.add("is-empty"), r.textContent = t.t("template.previewFailed"), i.textContent = ""), !1;
+			}
 		}
-	}, p = (e = De) => {
-		l !== void 0 && window.clearTimeout(l), l = window.setTimeout(() => {
-			l = void 0, f();
+	}, C = (e = De) => {
+		p !== void 0 && window.clearTimeout(p), p = window.setTimeout(() => {
+			p = void 0, S();
 		}, e);
 	};
-	return t.onInput(Ee, p), p(0), {
-		root: c,
+	return l.addEventListener("click", () => {
+		h = h === "draft" ? "saved" : "draft", C(0);
+	}), t.onSavedChange(() => {
+		h = "saved", g = "", _ = !1, C(0);
+	}), t.onInput(J, () => {
+		y();
+	}), t.onInput(J, C), y(), C(0), {
+		root: f,
 		stop: () => {
-			l !== void 0 && window.clearTimeout(l), l = void 0;
+			p !== void 0 && window.clearTimeout(p), p = void 0;
 		}
 	};
 }
 function Me(e) {
-	let t = U(e, {
+	let t = H(e, {
 		id: "template",
 		keys: ["message_format", "excerpt_limit"],
 		title: e.t("group.template"),
 		hint: e.t("group.template.hint")
-	}), n = t.querySelector(".qqbot-grid"), r = H(e, "message_template");
+	}), n = t.querySelector(".qqbot-grid"), r = V(e, "message_template");
 	if (n && r) {
 		let t = () => r.control;
 		r.root.insertBefore(X(e, t), r.control), r.root.insertBefore(Ae(e, t), r.control), n.append(r.root);
 	}
 	let i = je(e);
 	n && n.append(i.root);
-	let a = H(e, "signature");
+	let a = V(e, "signature");
 	return n && a && n.append(a.root), {
 		root: t,
 		stop: i.stop
@@ -1698,27 +1731,32 @@ function Ie(e) {
 	return t === void 0 || t === 404 ? "route" : t === 401 || t === 403 ? "permission" : t === 429 ? "rate" : "service";
 }
 function Le(t) {
-	let n = we(t.locale), r = n.t, i = t.settings.items ?? [], a = /* @__PURE__ */ new Map(), o = {};
-	for (let e of i) a.set(e.key, e), o[e.key] = typeof e.value == "string" ? e.value : e.default ?? "";
-	let s = e("strong"), c = e("span", { class: "qqbot-banner__detail" }), l = e("div", {
+	let n = Te(t.locale), r = n.t, i = t.settings.items ?? [], a = /* @__PURE__ */ new Map(), o = {}, s = {};
+	for (let e of i) {
+		a.set(e.key, e);
+		let t = typeof e.value == "string" ? e.value : e.default ?? "";
+		o[e.key] = t, s[e.key] = t;
+	}
+	let c = e("strong"), l = e("span", { class: "qqbot-banner__detail" }), u = e("div", {
 		class: "qqbot-banner",
 		role: "alert"
-	}, s, c);
-	l.hidden = !0;
-	let u = (e) => {
+	}, c, l);
+	u.hidden = !0;
+	let d = (e) => {
 		let t = Pe[e];
-		s.textContent = r(t.title), c.textContent = r(t.detail), l.hidden = !1;
-	}, d = /* @__PURE__ */ new Map(), f = /* @__PURE__ */ new Map(), p = /* @__PURE__ */ new Set(), m = (e) => {
-		let t = f.get(e);
+		c.textContent = r(t.title), l.textContent = r(t.detail), u.hidden = !1;
+	}, f = /* @__PURE__ */ new Map(), p = /* @__PURE__ */ new Map(), m = /* @__PURE__ */ new Set(), h = /* @__PURE__ */ new Set(), g = (e) => {
+		let t = p.get(e);
 		if (t) for (let e of t) e();
-	}, h = (e, t) => {
+	}, _ = (e, t) => {
 		e instanceof HTMLInputElement && e.type === "checkbox" ? e.checked = t === "true" : e.value !== t && (e.value = t);
-	}, g = {
+	}, v = {
 		bridge: t,
 		i18n: n,
 		t: r,
 		zh: n.zh,
 		draft: o,
+		savedValues: s,
 		disposed: !1,
 		secretSaved: i.some((e) => e.key === "app_secret" && e.secretSet === !0),
 		item: (e) => a.get(e),
@@ -1728,9 +1766,9 @@ function Le(t) {
 					...n,
 					responseMode: "body"
 				});
-				return l.hidden = !0, r;
+				return u.hidden = !0, r;
 			} catch (e) {
-				throw u(Ie(e)), e;
+				throw d(Ie(e)), e;
 			}
 		},
 		toast: (e, n, r) => t.toast({
@@ -1741,55 +1779,63 @@ function Le(t) {
 		getValue: (e) => o[e] ?? "",
 		setValue: (e, n, r = !0) => {
 			o[e] = n, t.settings.updateValue(e, n);
-			let i = d.get(e);
-			r && i && h(i, n);
+			let i = f.get(e);
+			r && i && _(i, n);
 		},
 		registerControl: (e, n, r) => {
-			d.set(e, n);
+			f.set(e, n);
 			let i = () => {
 				let n = r();
-				o[e] !== n && (o[e] = n, t.settings.updateValue(e, n)), m(e);
+				o[e] !== n && (o[e] = n, t.settings.updateValue(e, n)), g(e);
 			};
 			n.addEventListener("input", i), n.addEventListener("change", i);
 		},
 		onInput: (e, t) => {
 			for (let n of e) {
-				let e = f.get(n) ?? /* @__PURE__ */ new Set();
-				e.add(t), f.set(n, e);
+				let e = p.get(n) ?? /* @__PURE__ */ new Set();
+				e.add(t), p.set(n, e);
 			}
 		},
-		focus: (e) => d.get(e)?.focus(),
+		focus: (e) => f.get(e)?.focus(),
 		syncFromBridge: () => {
 			let e = t.settings.values(), n = !1;
 			for (let t of Object.keys(o)) {
 				let r = e[t];
 				if (typeof r != "string" || r === o[t]) continue;
 				o[t] = r;
-				let i = d.get(t);
-				i && h(i, r), Ne.includes(t) && (n = !0);
+				let i = f.get(t);
+				i && _(i, r), Ne.includes(t) && (n = !0);
 			}
-			n && m("message_template");
+			for (let t of Object.keys(s)) {
+				let n = e[t];
+				typeof n == "string" && (s[t] = n);
+			}
+			for (let e of h) e();
+			n && g("message_template");
+		},
+		onSavedChange: (e) => {
+			h.add(e);
 		},
 		markSecretSaved: () => {
-			g.secretSaved = !0;
-			for (let e of p) e();
+			v.secretSaved = !0;
+			for (let e of m) e();
 		},
 		onSecretSavedChange: (e) => {
-			p.add(e);
+			m.add(e);
 		}
-	}, _ = F(g), v = Me(g), y = xe(g), b = R(g), x = /* @__PURE__ */ new Map();
+	}, y = P(v), b = Me(v), x = Se(v), S = L(v), C = /* @__PURE__ */ new Map();
 	for (let e of i) {
-		let t = (e.groupId || "").trim() || "other", n = x.get(t);
-		n ? n.push(e) : x.set(t, [e]);
+		let t = (e.groupId || "").trim() || "other", n = C.get(t);
+		n ? n.push(e) : C.set(t, [e]);
 	}
-	let S = [...$.filter((e) => x.has(e)), ...[...x.keys()].filter((e) => !$.includes(e))], C = [];
-	for (let e of S) {
-		let t = x.get(e) ?? [];
+	let w = [...$.filter((e) => C.has(e)), ...[...C.keys()].filter((e) => !$.includes(e))], T = [];
+	for (let e of w) {
+		let t = C.get(e) ?? [];
 		if (e === "template") {
-			C.push(v.root);
+			T.push(b.root);
 			continue;
 		}
-		let n = e === "other" ? r("group.other") : Z[e] ? r(Z[e]) : e, i = e === "other" ? r("group.other.hint") : Q[e] ? r(Q[e]) : void 0, a = U(g, {
+		let n = e === "other" ? r("group.other") : Z[e] ? r(Z[e]) : e, i = e === "other" ? r("group.other.hint") : Q[e] ? r(Q[e]) : void 0, a = H(v, {
 			id: e,
 			keys: t.map((e) => e.key),
 			title: n,
@@ -1797,15 +1843,15 @@ function Le(t) {
 		});
 		if (e === "targets") {
 			let e = a.querySelector("[data-key=\"group_ids\"]");
-			e?.parentElement && e.parentElement.insertBefore(y.root, e);
+			e?.parentElement && e.parentElement.insertBefore(x.root, e);
 		}
-		C.push(a);
+		T.push(a);
 	}
-	let w = e("div", { class: "qqbot-settings" }, l, _.root, ...C, b.root);
+	let E = e("div", { class: "qqbot-settings" }, u, y.root, ...T, S.root);
 	return {
-		root: w,
+		root: E,
 		destroy: () => {
-			g.disposed = !0, _.destroy(), v.stop(), y.destroy(), b.destroy(), w.remove();
+			v.disposed = !0, y.destroy(), b.stop(), x.destroy(), S.destroy(), E.remove();
 		}
 	};
 }
