@@ -29,9 +29,15 @@ M1.2 加固：修掉 0.2.0 真机验收前暴露的四类风险，并补两项�
 - **模板预设**：默认 / 精简 / 公告风三个按钮把模板写进草稿并复用既有预览；「默认」读清单里的
   `item.default`，不在组件内复制一份文案。预设不落库，点「保存」才生效。
 - **`/preview` 支持 `source=saved|draft` 与 `sample`**：`saved`（默认）忽略请求里的模板类字段、
-  完全按已保存配置渲染，与真实推送共用同一个 `renderSaved` 入口；`draft` 保留编辑期预览
-  （缺键回落已保存、空串按空串）；`sample` 可按字段覆盖样例的标题/作者/分类/摘要/链接。
-  响应新增 `source` / `characters`（按码点计数）/ `sampleUsed`。
+  完全按已保存配置渲染，与真实推送共用同一个 `renderSaved` 入口，并在响应里回显
+  `savedSnapshot`（`message_template` / `message_format` / `signature` / `excerpt_limit` /
+  `max_message_chars`，全部取自服务端配置、不取自请求；`draft` 刻意不带，避免草稿被当成基线）；
+  `draft` 保留编辑期预览（缺键回落已保存、空串按空串）；`sample` 可按字段覆盖样例的
+  标题/作者/分类/摘要/链接。响应新增 `source` / `characters`（按码点计数）/ `sampleUsed` /
+  `savedSnapshot`。
+- **预览卡的「样例数据」覆盖**：预览区新增可折叠面板，五个样例字段（标题 / 作者 / 分类 /
+  摘要 / 链接）只把填了的发出去，其余仍用内置样例；`sampleUsed` 为真时给一行弱提示，
+  说明当前预览用的是自定义样例而不是真实主题。
 
 ### 修复
 
@@ -51,8 +57,11 @@ M1.2 加固：修掉 0.2.0 真机验收前暴露的四类风险，并补两项�
 ### 变更
 
 - **设置页预览默认按已保存配置渲染**（即真实推送口径）：草稿有未保存改动时显示提示行与
-  「按草稿预览」切换按钮，保存后自动切回 `saved`。组件自维护 `savedValues` 基线——宿主
-  `values()` 与 `updateValue` 指向同一对象，不能当基线用。
+  「按草稿预览」切换按钮，保存后自动切回 `saved`。**预览基线改用 `/preview source=saved`
+  回显的 `savedSnapshot`**：宿主 `settings.values()` 恒等于草稿、`settings.items` 只是挂载时
+  快照，且 `save()` 失败并不 reject，组件无法分辨保存成败——旧做法据此推进基线，保存失败时
+  会误报「已保存」。现在保存/恢复失败基线不推进，脏提示保留；`excerpt_limit` /
+  `max_message_chars` 在基线里统一归一为字符串，避免「语义相同、类型不同」被判成脏。
 - **删 `state.Snapshot` 与 `(*State).Snapshot()`**：全仓库零调用，且其注释声称「返回脱敏副本」
   与事实相反——真实出口 `RecentClaims` **故意**返回完整群 ID（运营要复制进白名单），
   插件里从来没有脱敏的状态出口。
