@@ -548,7 +548,7 @@ MVP 档（收窄后：**F-01..F-05 + F-10..F-17 + F-30..F-32**，且**不含 F-2
 
 ### 14.1 事实地基（成本估算的依据，逐条给位置）
 
-下面每一条都是当前 `0.2.0` 代码/清单的实测状态，不是推测；§14.2 的量级由它们推出。
+下面每一条都是当前 `0.4.2` 代码/清单的实测状态（除路由与 schema 计数外，与 `0.2.0` 一致），不是推测；§14.2 的量级由它们推出。
 
 | # | 事实 | 证据 |
 | --- | --- | --- |
@@ -556,7 +556,7 @@ MVP 档（收窄后：**F-01..F-05 + F-10..F-17 + F-30..F-32**，且**不含 F-2
 | E2 | 现有多值设置一律是 `textarea` + 行分隔解析（`#` 为注释、去重、保序），不是列表控件 | `backend/config.go`（`splitSettingList`）、`group_ids` / `category_filter` 两个字段的定义 |
 | E3 | `template` 组**不走通用渲染**：`app.ts` 遇到该组直接交给定制的 `createTemplateSection`，只渲染它显式列出的 key（`message_format`、`excerpt_limit`、`message_template`、`signature`） | `frontend/admin/src/app.ts` 分组循环、`frontend/admin/src/template.ts` 的 `createTemplateSection` |
 | E4 | 其它组按 `groupId` 分桶后**通用渲染全部字段**——落在这四组的新设置项会自动出现，落在 `template` 组的新设置项会静默消失 | `frontend/admin/src/app.ts` 的 buckets/`groupItems.map` |
-| E5 | 推送是**一次渲染、多群同发**：事件 handler 渲染一次得到单条 `Content`，`DeliveryJob` 只有 `Content` + `Groups[]`，所有白名单群收到同一段文字 | `backend/hook.go`（`Render` → `Enqueue`）、`backend/dispatcher.go` 的 `DeliveryJob` |
+| E5 | 推送是**一次渲染、多群同发**：事件 handler 渲染一次得到单条 `Content`，`DeliveryJob` 不含按群差异字段（当前字段 `TopicTitle` / `Content` / `Groups[]` / `Truncated`），所有白名单群收到同一段文字 | `backend/hook.go`（`Render` → `Enqueue`）、`backend/dispatcher.go` 的 `DeliveryJob` |
 | E6 | 分类目前只是**布尔闸门**：命中过滤清单就推、不命中就整条跳过（记 `category_filtered`），不参与"推给谁" | `backend/dispatcher.go` 的 `Admit` 中 `CategoryFilter` 分支 |
 | E7 | 预览**不查 HostQuery**：预览 runtime 拿不到 host token，只能用样例数据渲染，拿不到真实分类名/slug/正文 | `backend/routes.go` 的 `routePreview` 注释与实现 |
 | E8 | 加一个设置项要同步三处：清单 `default`、`config.go` 的默认常量与解析、`manifest_contract_test.go` 的默认值比对表（漂移即红） | `backend/config.go` 顶部常量注释、`manifest_contract_test.go` 的 `settings defaults` 子测试 |
@@ -645,9 +645,9 @@ MVP 档（收窄后：**F-01..F-05 + F-10..F-17 + F-30..F-32**，且**不含 F-2
 
 | 核对项 | `0.2.0` 事实 | §13 原文 | 处理 |
 | --- | --- | --- | --- |
-| M1 / M1.1 交付 | 清单 `0.2.0`，事件、5 条路由、12 个 schema、dist 产物齐备 | 已逐条列交付 | 一致，不改 |
+| M1 / M1.1 交付 | 0.2.0 时点：清单 `0.2.0`、1 个事件、5 条路由、12 个 schema；当前包（`0.4.2`）为 1 个事件、7 条路由、16 个 schema（`extension validate` 输出 `routes: 7` / `v3.packageFiles: 20`） | 已逐条列交付 | 一致；计数按当前包校正，见下一行 |
 | 入站回流 / 频道单聊 / CSV | `events[]` 只有 `topic.created`（observe）；发送面只有 `SendGroupMessage`；无 CSV 导出、记录不落盘 | 只在"实现偏差"里隐含提到 F-30/F-33 | **新增一条「未交付」清单**，把三件事写成可核对的断言 |
-| schema 计数 | 文件数 12 = 10 个路由 schema + 2 个事件 schema | 写作"10 个 JSON Schema" | 改为"10 个路由 schema + 2 个事件 schema（共 12 个文件）"，避免与文件数对不上 |
+| schema 计数 | 当前包 16 个文件 = 14 个路由 schema + 2 个事件 schema（`0.2.0` 时点为 12 = 10 + 2；M1.2 的 `/groups/list` 与 M1.3 的 `/account/status` 各新增 1 条路由、2 个 schema 文件） | 写的是 M1.1 时点「10 个路由 schema + 2 个事件 schema（共 12 个文件）」 | 改为"当前 14 个路由 schema + 2 个事件 schema（共 16 个文件）"，避免与当前文件数对不上 |
 
 ## 15. 相关文档
 
