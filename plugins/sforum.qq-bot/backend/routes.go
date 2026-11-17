@@ -41,9 +41,10 @@ const (
 // 路由侧的可读拒绝文案。它们只出现在 ErrorDetail 或 {ok:false, message} 里，
 // 绝不包含任何凭据。
 const (
-	messageBindUnavailable = "扫码绑定服务尚未就绪，请重启插件后再试，或直接手动填写凭据。"
-	messageBindRateLimited = "扫码绑定请求过于频繁，请稍后再试。"
-	messageBindTaskMissing = "缺少 taskId，请先调用 /bind/start 生成二维码。"
+	messageBindUnavailable  = "扫码绑定服务尚未就绪，请重启插件后再试，或直接手动填写凭据。"
+	messageBindRateLimited  = "扫码绑定请求过于频繁，请稍后再试。"
+	messageBindTaskMissing  = "缺少 taskId，请先调用 /bind/start 生成二维码。"
+	messageBindActorMissing = "无法确认调用者身份，请重新登录后再试。"
 )
 
 // routeContentTypeJSON 是路由响应的媒体类型。
@@ -81,6 +82,13 @@ func (p *plugin) routeBindStart(ctx context.Context, request *pluginwire.RouteRe
 		return routeFailure(request, http.StatusServiceUnavailable,
 			protocolwire.ErrorCode_ERROR_CODE_UNAVAILABLE, "qq_bot.bind_unavailable", messageBindUnavailable), nil
 	}
+	// 没有发起者就不建任务：凭据必须知道交给谁。放在限流之前，免得一次没有
+	// 归属的请求还吃掉运营者的配额。
+	ownerID := routeActorID(request)
+	if ownerID <= 0 {
+		return routeFailure(request, http.StatusForbidden,
+			protocolwire.ErrorCode_ERROR_CODE_PERMISSION_DENIED, "qq_bot.bind_actor_missing", messageBindActorMissing), nil
+	}
 	if wait := p.bindStore.AllowStart(); wait > 0 {
 		seconds := int(math.Ceil(wait.Seconds()))
 		if seconds < 1 {
@@ -98,7 +106,7 @@ func (p *plugin) routeBindStart(ctx context.Context, request *pluginwire.RouteRe
 		return routeFailure(request, http.StatusBadGateway,
 			protocolwire.ErrorCode_ERROR_CODE_UNAVAILABLE, "qq_bot.bind_start_failed", bindAdminMessage(err)), nil
 	}
-	p.bindStore.Put(task.TaskID, task.Key)
+	p.bindStore.Put(task.TaskID, task.Key, ownerID)
 	return p.routeDocument(request, bindStartOutputSchema, map[string]any{
 		"taskId":           task.TaskID,
 		"connectUrl":       task.ConnectURL,
@@ -118,7 +126,12 @@ func (p *plugin) routeBindPoll(ctx context.Context, request *pluginwire.RouteReq
 		return routeFailure(request, http.StatusBadRequest,
 			protocolwire.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, "qq_bot.bind_task_missing", messageBindTaskMissing), nil
 	}
-	key, found := p.bindStore.Key(taskID)
+	// 非发起者与「任务不存在」走同一条出口：都回报 expired、都不带凭据。
+	// 选 expired 而不是一个「非本人」错误码，理由有两条：前端已处理 expired
+	// 语义（bind-card 零改动），且它不告诉非本人「这个 taskId 真的存在」。
+	// 缺 actor 时 ownerID 为 0，与任何真实任务都不匹配，同样落到 expired。
+	ownerID := routeActorID(request)
+	key, found := p.bindStore.Key(taskID, ownerID)
 	if !found {
 		return p.routeDocument(request, bindPollOutputSchema, bindPollDocument(bindStatusExpired, "", ""))
 	}
@@ -137,7 +150,7 @@ func (p *plugin) routeBindPoll(ctx context.Context, request *pluginwire.RouteReq
 	}
 	// 成功只此一次：以 Take 的结果为准，而不是本地的轮询结果。两个并发轮询都拿到
 	// 同一份凭据时，只有抢到任务的那个能交付，另一个回报 expired。
-	if _, owned := p.bindStore.Take(taskID); !owned {
+	if _, owned := p.bindStore.Take(taskID, ownerID); !owned {
 		return p.routeDocument(request, bindPollOutputSchema, bindPollDocument(bindStatusExpired, "", ""))
 	}
 	return p.routeDocument(request, bindPollOutputSchema,
@@ -346,6 +359,18 @@ func routeStringValue(values map[string]any, key string) string {
 		return strings.TrimSpace(text)
 	}
 	return ""
+}
+
+// routeActorID 取调用者账号，取不到返回 0。
+//
+// 五条路由都挂在 core.guard.permission 后面，宿主已要求 ActorID>0 才放行
+// （并在派发时把 actor 送进插件），所以这里再取一次不是复读权限判定，而是给
+// 「将来新增无守卫入口」留一道兜底：没有账号就不该产生任何有归属的副作用。
+func routeActorID(request *pluginwire.RouteRequest) int64 {
+	if request == nil {
+		return 0
+	}
+	return request.GetContext().GetActor().GetUserId()
 }
 
 // routeIntValue 读一个非负整数。structpb 把数字统一成 float64，但也接受字符串，

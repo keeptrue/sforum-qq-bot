@@ -296,7 +296,7 @@ func TestRouteBindPollDeliversSecretOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("生成密钥失败：%v", err)
 	}
-	instance.bindStore.Put("task-once", key)
+	instance.bindStore.Put("task-once", key, testActorUserID)
 
 	var sealed string
 	sealed = sealBindSecret(t, key, "app-secret-once")
@@ -347,7 +347,7 @@ func TestRouteBindPollDeliversSecretOnce(t *testing.T) {
 // bind_poll：上游失败要落到可读原因，而不是空响应。
 func TestRouteBindPollUpstreamFailure(t *testing.T) {
 	instance := newRouteTestPlugin(t, testConfig(), nil)
-	instance.bindStore.Put("task-1", "key-1")
+	instance.bindStore.Put("task-1", "key-1", testActorUserID)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writeBindJSON(t, writer, map[string]any{"retcode": 20001, "msg": "server busy"})
 	}))
@@ -378,7 +378,7 @@ func TestRouteBindPollConcurrentDeliveryIsExclusive(t *testing.T) {
 		t.Fatalf("生成密钥失败：%v", err)
 	}
 	sealed := sealBindSecret(t, key, "only-once")
-	instance.bindStore.Put("task-race", key)
+	instance.bindStore.Put("task-race", key, testActorUserID)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writeBindJSON(t, writer, map[string]any{
 			"retcode": 0, "msg": "", "data": map[string]any{
@@ -429,6 +429,141 @@ func TestRouteBindPollConcurrentDeliveryIsExclusive(t *testing.T) {
 	}
 	if instance.bindStore.Len() != 0 {
 		t.Fatalf("任务应已被取走，实际还剩 %d 条", instance.bindStore.Len())
+	}
+}
+
+// bind_start：拿不到调用者就不建任务——凭据必须知道交给谁。
+func TestRouteBindStartRejectsMissingActor(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		writeBindJSON(t, writer, map[string]any{
+			"retcode": 0, "msg": "", "data": map[string]any{"task_id": "task-anon"},
+		})
+	}))
+	defer server.Close()
+	instance.bind.baseURL = server.URL
+
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindStartID, nil, 0))
+	if err != nil {
+		t.Fatalf("缺 actor 不该返回 error：%v", err)
+	}
+	if response.GetStatusCode() != http.StatusForbidden {
+		t.Fatalf("状态码期望 403，得到 %d", response.GetStatusCode())
+	}
+	detail := response.GetError()
+	if detail == nil || detail.GetCode() != protocolwire.ErrorCode_ERROR_CODE_PERMISSION_DENIED {
+		t.Fatalf("错误码期望 PERMISSION_DENIED，得到 %+v", detail)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("缺 actor 不该打上游，实际 %d 次", hits.Load())
+	}
+	if instance.bindStore.Len() != 0 {
+		t.Fatalf("缺 actor 不该留下任务，实际 %d 条", instance.bindStore.Len())
+	}
+}
+
+// bind_poll：任务绑定发起者——别人拿到 taskId 也拿不到凭据，发起者仍能交付。
+func TestRouteBindPollRejectsOtherOwner(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	var sealed atomic.Value
+	sealed.Store("")
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case createBindTaskPath:
+			writeBindJSON(t, writer, map[string]any{
+				"retcode": 0, "msg": "", "data": map[string]any{"task_id": "task-owner"},
+			})
+		case pollBindResultPath:
+			writeBindJSON(t, writer, map[string]any{
+				"retcode": 0, "msg": "", "data": map[string]any{
+					"status": bindRemoteCompleted, "bot_appid": "102030405",
+					"bot_encrypt_secret": sealed.Load(),
+				},
+			})
+		default:
+			t.Errorf("未预期路径：%s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+	instance.bind.baseURL = server.URL
+
+	// 发起者出码：任务表里必须记下发起者，否则下面的校验无从谈起。
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindStartID, nil, testActorUserID))
+	if err != nil {
+		t.Fatalf("建任务失败：%v", err)
+	}
+	routeDocumentValues(t, response, bindStartOutputSchema)
+	key, ok := instance.bindStore.Key("task-owner", testActorUserID)
+	if !ok {
+		t.Fatal("发起者应能读到自己的任务密钥")
+	}
+	sealed.Store(sealBindSecret(t, key, "owner-only-secret"))
+
+	// 非发起者用同一个 taskId 轮询：只看到 expired，任务原封不动。
+	response, err = instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-owner"}, testOtherUserID))
+	if err != nil {
+		t.Fatalf("非发起者轮询不该返回 error：%v", err)
+	}
+	values := routeDocumentValues(t, response, bindPollOutputSchema)
+	if values["status"] != bindStatusExpired {
+		t.Fatalf("非发起者应回报 expired，得到 %v", values["status"])
+	}
+	if values["appId"] != "" || values["appSecret"] != "" {
+		t.Fatalf("非发起者不该拿到凭据：%v / %v", values["appId"], values["appSecret"])
+	}
+	if instance.bindStore.Len() != 1 {
+		t.Fatalf("非发起者不该把任务取走，实际剩 %d 条", instance.bindStore.Len())
+	}
+
+	// 发起者自己轮询：凭据交付，任务被取走。
+	response, err = instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-owner"}, testActorUserID))
+	if err != nil {
+		t.Fatalf("发起者轮询失败：%v", err)
+	}
+	values = routeDocumentValues(t, response, bindPollOutputSchema)
+	if values["status"] != bindStatusScanned {
+		t.Fatalf("发起者应拿到 scanned，得到 %v", values["status"])
+	}
+	if values["appId"] != "102030405" || values["appSecret"] != "owner-only-secret" {
+		t.Fatalf("凭据不对：%v / %v", values["appId"], values["appSecret"])
+	}
+	if instance.bindStore.Len() != 0 {
+		t.Fatalf("凭据交付后任务应被取走，实际还剩 %d 条", instance.bindStore.Len())
+	}
+}
+
+// bind_poll：请求不带 actor 时回报 expired（200），既不交付凭据也不吃掉任务。
+func TestRouteBindPollRejectsMissingActor(t *testing.T) {
+	instance := newRouteTestPlugin(t, testConfig(), nil)
+	key, err := bindRandomKey(nil)
+	if err != nil {
+		t.Fatalf("生成密钥失败：%v", err)
+	}
+	instance.bindStore.Put("task-anon", key, testActorUserID)
+
+	response, err := instance.InvokeRoute(context.Background(),
+		newRouteRequestAs(t, routeBindPollID, map[string]any{"taskId": "task-anon"}, 0))
+	if err != nil {
+		t.Fatalf("缺 actor 的轮询不该返回 error：%v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("缺 actor 应回报 200 + expired，得到 %d", response.GetStatusCode())
+	}
+	values := routeDocumentValues(t, response, bindPollOutputSchema)
+	if values["status"] != bindStatusExpired {
+		t.Fatalf("缺 actor 应回报 expired，得到 %v", values["status"])
+	}
+	if values["appId"] != "" || values["appSecret"] != "" {
+		t.Fatalf("缺 actor 不该拿到凭据：%v / %v", values["appId"], values["appSecret"])
+	}
+	if _, ok := instance.bindStore.Key("task-anon", testActorUserID); !ok {
+		t.Fatal("缺 actor 的轮询不该把任务取走")
 	}
 }
 

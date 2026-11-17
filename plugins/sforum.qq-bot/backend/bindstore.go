@@ -19,9 +19,11 @@ const (
 	bindStoreMaxEntries = 64
 )
 
-// bindTaskEntry 是一条绑定任务：key 是解密密钥的 base64，只在内存里存在。
+// bindTaskEntry 是一条绑定任务：key 是解密密钥的 base64，只在内存里存在；
+// ownerID 是发起 /bind/start 的账号——凭据只交付给这个人。
 type bindTaskEntry struct {
 	key       string
+	ownerID   int64
 	createdAt time.Time
 }
 
@@ -80,23 +82,27 @@ func (s *BindStore) RefundStart() {
 }
 
 // Put 记下一次绑定任务，并顺手清掉过期项。
-func (s *BindStore) Put(taskID, key string) {
+//
+// ownerID 必须 > 0：没有发起者的任务无法判断该把凭据交给谁，记下来就等于
+// 「谁先拿到 taskId 谁取走」，所以直接丢弃。
+func (s *BindStore) Put(taskID, key string, ownerID int64) {
 	taskID = strings.TrimSpace(taskID)
-	if s == nil || taskID == "" || key == "" {
+	if s == nil || taskID == "" || key == "" || ownerID <= 0 {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := s.now()
 	s.pruneLocked(now)
-	s.tasks[taskID] = bindTaskEntry{key: key, createdAt: now}
+	s.tasks[taskID] = bindTaskEntry{key: key, ownerID: ownerID, createdAt: now}
 	if len(s.tasks) > bindStoreMaxEntries {
 		s.trimOldestLocked(len(s.tasks) - bindStoreMaxEntries)
 	}
 }
 
-// Key 只读地取任务密钥，供反复轮询使用；任务不存在或已过期返回 false。
-func (s *BindStore) Key(taskID string) (string, bool) {
+// Key 只读地取任务密钥，供反复轮询使用；任务不存在、已过期或不属于 ownerID
+// 都返回 false。ownerID 不匹配时不删条目——任务仍然归发起者。
+func (s *BindStore) Key(taskID string, ownerID int64) (string, bool) {
 	taskID = strings.TrimSpace(taskID)
 	if s == nil || taskID == "" {
 		return "", false
@@ -111,11 +117,15 @@ func (s *BindStore) Key(taskID string) (string, bool) {
 		delete(s.tasks, taskID)
 		return "", false
 	}
+	if entry.ownerID != ownerID {
+		return "", false
+	}
 	return entry.key, true
 }
 
-// Take 取走任务密钥：凭据只允许交付一次，成功后立即删除。
-func (s *BindStore) Take(taskID string) (string, bool) {
+// Take 取走任务密钥：凭据只允许交付一次，成功后立即删除。ownerID 不匹配时
+// 不动条目——别人取不走，发起者仍能正常交付。
+func (s *BindStore) Take(taskID string, ownerID int64) (string, bool) {
 	taskID = strings.TrimSpace(taskID)
 	if s == nil || taskID == "" {
 		return "", false
@@ -126,10 +136,14 @@ func (s *BindStore) Take(taskID string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	delete(s.tasks, taskID)
 	if s.expiredLocked(entry, s.now()) {
+		delete(s.tasks, taskID)
 		return "", false
 	}
+	if entry.ownerID != ownerID {
+		return "", false
+	}
+	delete(s.tasks, taskID)
 	return entry.key, true
 }
 
