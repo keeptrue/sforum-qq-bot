@@ -38,6 +38,10 @@ type manifestRoute struct {
 	RequestSchema   string   `json:"requestSchema"`
 	ResponseSchema  string   `json:"responseSchema"`
 	Methods         []string `json:"methods"`
+	Access          string   `json:"access"`
+	Fallback        string   `json:"fallback"`
+	Guard           string   `json:"guard"`
+	Permission      string   `json:"permission"`
 }
 
 type manifestToolParameterSet struct {
@@ -157,6 +161,7 @@ func TestManifestContract(t *testing.T) {
 			{routePreviewID, previewInputSchema, previewOutputSchema, "/preview"},
 			{routeTestPushID, testPushInputSchema, testPushOutputSchema, "/test-push"},
 			{routeStatusID, statusInputSchema, statusOutputSchema, "/status"},
+			{routeGroupsListID, groupsListInputSchema, groupsListOutputSchema, "/groups/list"},
 		}
 		if len(manifest.Routes) != len(expected) {
 			t.Fatalf("清单应声明 %d 条路由，实际 %d 条", len(expected), len(manifest.Routes))

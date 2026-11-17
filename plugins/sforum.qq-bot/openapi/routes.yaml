@@ -118,6 +118,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/sforum.qq-bot.status.output@1"
+  /groups/list:
+    post:
+      operationId: sforum.qq-bot.groups.list
+      x-sforum-route-id: sforum.qq-bot.route.groups_list
+      x-sforum-contract-version: sforum.qq-bot.route.groups_list@1
+      x-sforum-guard: core.guard.permission
+      x-sforum-permission: sforum.qq-bot.manage
+      x-sforum-request-schema: sforum.qq-bot.groups.list.input@1
+      x-sforum-response-schema: sforum.qq-bot.groups.list.output@1
+      summary: List the groups the bot has seen in group events, with best-effort names
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/sforum.qq-bot.groups.list.input@1"
+      responses:
+        "200":
+          description: Groups recognised so far; a missing name is reported as name null plus nameUnavailable true instead of failing the request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/sforum.qq-bot.groups.list.output@1"
 components:
   schemas:
     "sforum.qq-bot.bind.start.input@1":
@@ -140,3 +163,7 @@ components:
       $ref: "../schemas/status-input.json"
     "sforum.qq-bot.status.output@1":
       $ref: "../schemas/status-output.json"
+    "sforum.qq-bot.groups.list.input@1":
+      $ref: "../schemas/groups-list-input.json"
+    "sforum.qq-bot.groups.list.output@1":
+      $ref: "../schemas/groups-list-output.json"

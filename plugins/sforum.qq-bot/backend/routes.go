@@ -19,23 +19,26 @@ import (
 // 与清单 routes[]、schemas/ 逐字一致的契约常量。清单由 pm 维护，这里只读地镜像
 // 同一批字符串：任何一侧改动都必须同步。
 const (
-	routeBindStartID = "sforum.qq-bot.route.bind_start"
-	routeBindPollID  = "sforum.qq-bot.route.bind_poll"
-	routePreviewID   = "sforum.qq-bot.route.preview"
-	routeTestPushID  = "sforum.qq-bot.route.test_push"
-	routeStatusID    = "sforum.qq-bot.route.status"
+	routeBindStartID  = "sforum.qq-bot.route.bind_start"
+	routeBindPollID   = "sforum.qq-bot.route.bind_poll"
+	routePreviewID    = "sforum.qq-bot.route.preview"
+	routeTestPushID   = "sforum.qq-bot.route.test_push"
+	routeStatusID     = "sforum.qq-bot.route.status"
+	routeGroupsListID = "sforum.qq-bot.route.groups_list"
 
-	bindStartOutputSchema = "sforum.qq-bot.bind.start.output@1"
-	bindPollOutputSchema  = "sforum.qq-bot.bind.poll.output@1"
-	previewOutputSchema   = "sforum.qq-bot.preview.output@1"
-	testPushOutputSchema  = "sforum.qq-bot.test_push.output@1"
-	statusOutputSchema    = "sforum.qq-bot.status.output@1"
+	bindStartOutputSchema  = "sforum.qq-bot.bind.start.output@1"
+	bindPollOutputSchema   = "sforum.qq-bot.bind.poll.output@1"
+	previewOutputSchema    = "sforum.qq-bot.preview.output@1"
+	testPushOutputSchema   = "sforum.qq-bot.test_push.output@1"
+	statusOutputSchema     = "sforum.qq-bot.status.output@1"
+	groupsListOutputSchema = "sforum.qq-bot.groups.list.output@1"
 
-	bindStartInputSchema = "sforum.qq-bot.bind.start.input@1"
-	bindPollInputSchema  = "sforum.qq-bot.bind.poll.input@1"
-	previewInputSchema   = "sforum.qq-bot.preview.input@1"
-	testPushInputSchema  = "sforum.qq-bot.test_push.input@1"
-	statusInputSchema    = "sforum.qq-bot.status.input@1"
+	bindStartInputSchema  = "sforum.qq-bot.bind.start.input@1"
+	bindPollInputSchema   = "sforum.qq-bot.bind.poll.input@1"
+	previewInputSchema    = "sforum.qq-bot.preview.input@1"
+	testPushInputSchema   = "sforum.qq-bot.test_push.input@1"
+	statusInputSchema     = "sforum.qq-bot.status.input@1"
+	groupsListInputSchema = "sforum.qq-bot.groups.list.input@1"
 )
 
 // 路由侧的可读拒绝文案。它们只出现在 ErrorDetail 或 {ok:false, message} 里，
@@ -69,6 +72,8 @@ func (p *plugin) InvokeRoute(ctx context.Context, request *pluginwire.RouteReque
 		return p.routeTestPush(ctx, request)
 	case routeStatusID:
 		return p.routeStatus(request)
+	case routeGroupsListID:
+		return p.routeGroupsList(ctx, request)
 	default:
 		return routeFailure(request, http.StatusNotFound,
 			protocolwire.ErrorCode_ERROR_CODE_NOT_FOUND, "qq_bot.route_unknown",
@@ -219,6 +224,48 @@ func (p *plugin) routeTestPush(ctx context.Context, request *pluginwire.RouteReq
 // routeStatus 复用设置页工具的状态文本，保持两条入口看到同一份事实。
 func (p *plugin) routeStatus(request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
 	return p.routeDocument(request, statusOutputSchema, map[string]any{"text": p.renderStatus()})
+}
+
+// routeGroupsList 返回插件自己收到的群事件里识别到的群。
+//
+// QQ 群侧没有「列出机器人所在群」的接口（只有频道有 /users/@me/guilds），所以
+// 唯一数据源是 ClaimRecord：机器人必须先在群里收到过事件，那个群才会出现在这里。
+// 群名是尽力而为的附加信息，拿不到就返回 null + nameUnavailable，绝不让整个
+// 列表因为名字查询失败而失败。
+func (p *plugin) routeGroupsList(ctx context.Context, request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
+	var claims []ClaimRecord
+	if p.state != nil {
+		claims = p.state.RecentClaims(claimRingSize)
+	}
+	openIDs := make([]string, 0, len(claims))
+	for _, claim := range claims {
+		openIDs = append(openIDs, claim.GroupID)
+	}
+	names := p.resolveGroupNames(ctx, openIDs)
+
+	// structpb 只认 []any；空切片也要给，否则 JSON 里是 null 而不是 []。
+	groups := make([]any, 0, len(claims))
+	for _, claim := range claims {
+		name := names[claim.GroupID]
+		var nameValue any
+		if name != "" {
+			nameValue = name
+		}
+		groups = append(groups, map[string]any{
+			"openid":          claim.GroupID,
+			"name":            nameValue,
+			"nameUnavailable": name == "",
+			"eventType":       claim.EventType,
+			"firstSeenAt":     claim.FirstSeen.UTC().Format(time.RFC3339),
+			"lastSeenAt":      claim.LastSeen.UTC().Format(time.RFC3339),
+			"count":           claim.Count,
+		})
+	}
+	return p.routeDocument(request, groupsListOutputSchema, map[string]any{
+		"groups":         groups,
+		"claimEnabled":   p.cfg.EnableGroupIDClaim,
+		"recordingLimit": claimRingSize,
+	})
 }
 
 // messageSender 是投递出口：生产是 *QQClient，测试注入假实现。

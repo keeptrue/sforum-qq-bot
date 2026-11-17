@@ -284,6 +284,20 @@
       "version": "1"
     },
     {
+      "digest": "b2f2c8f7fbb40d4400871539df49506d5b9ac9b5539241714940bc7b6330a90c",
+      "id": "sforum.qq-bot.groups.list.input",
+      "kind": "schema",
+      "path": "schemas/groups-list-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "16af807921a871d7c9147f4bc09c29fd560157952c797a054d61ba5bb0b6b8eb",
+      "id": "sforum.qq-bot.groups.list.output",
+      "kind": "schema",
+      "path": "schemas/groups-list-output.json",
+      "version": "1"
+    },
+    {
       "digest": "47b313b63f52ac9487ea702ccdbaa84cf1bd8999f36f68346c6324d91539dbbe",
       "id": "sforum.qq-bot.file.openapi",
       "kind": "openapi",
@@ -406,6 +420,24 @@
       "permission": "sforum.qq-bot.manage",
       "requestSchema": "sforum.qq-bot.status.input@1",
       "responseSchema": "sforum.qq-bot.status.output@1",
+      "timeoutMs": 15000
+    },
+    {
+      "access": "permission",
+      "action": "add",
+      "contractVersion": "sforum.qq-bot.route.groups_list@1",
+      "fallback": "closed",
+      "guard": "core.guard.permission",
+      "handler": "sforum.qq-bot.route.groups_list",
+      "id": "sforum.qq-bot.route.groups_list",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/groups/list",
+      "permission": "sforum.qq-bot.manage",
+      "requestSchema": "sforum.qq-bot.groups.list.input@1",
+      "responseSchema": "sforum.qq-bot.groups.list.output@1",
       "timeoutMs": 15000
     }
   ],

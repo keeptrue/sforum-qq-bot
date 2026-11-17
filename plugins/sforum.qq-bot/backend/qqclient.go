@@ -21,6 +21,10 @@ const (
 	tokenPath   = "/app/getAppAccessToken"
 	gatewayPath = "/gateway"
 
+	// groupPathPrefix 是群侧 RESTful 前缀：群消息、群信息、群成员都挂在
+	// /v2/groups/{group_openid}/… 下。
+	groupPathPrefix = "/v2/groups/"
+
 	// tokenRefreshMargin 是提前刷新量：平台在过期前 60 秒内取新凭证可新旧并存，
 	// 我们提前 300 秒换新，留足时钟偏差与一次重试的余量。
 	tokenRefreshMargin = 300 * time.Second
@@ -283,6 +287,89 @@ func (c *QQClient) sendOnce(ctx context.Context, token, groupOpenID, content, fo
 		}
 	}
 	return SendResult{MessageID: decoded.ID}, nil
+}
+
+// GroupName 取群名。`GET /v2/groups/{group_openid}/info` 只对**白名单机器人**
+// 开放：普通应用会拿到 err_code 11253，所以调用方必须把失败当成「暂时拿不到
+// 名字」，而不是致命错误。
+func (c *QQClient) GroupName(ctx context.Context, groupOpenID string) (string, error) {
+	if !c.configured() {
+		return "", &QQError{Reason: "尚未配置 AppID / AppSecret"}
+	}
+	groupOpenID = strings.TrimSpace(groupOpenID)
+	if groupOpenID == "" {
+		return "", &QQError{Reason: "群 OpenID 为空"}
+	}
+	token, err := c.AccessToken(ctx)
+	if err != nil {
+		return "", err
+	}
+	name, err := c.groupNameOnce(ctx, token, groupOpenID)
+	var qqError *QQError
+	if err == nil || !errors.As(err, &qqError) || qqError.HTTPStatus != http.StatusUnauthorized {
+		return name, err
+	}
+	c.invalidateToken()
+	fresh, refreshErr := c.AccessToken(ctx)
+	if refreshErr != nil {
+		return "", refreshErr
+	}
+	return c.groupNameOnce(ctx, fresh, groupOpenID)
+}
+
+func (c *QQClient) groupNameOnce(ctx context.Context, token, groupOpenID string) (string, error) {
+	endpoint := c.baseURL + groupPathPrefix + url.PathEscape(groupOpenID) + "/info"
+	requestCtx, cancel := c.requestContext(ctx)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", &QQError{Reason: "构造群信息请求失败"}
+	}
+	request.Header.Set("Authorization", "QQBot "+token)
+	response, err := c.http.Do(request)
+	if err != nil {
+		return "", transportError(err)
+	}
+	defer response.Body.Close()
+	payload, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return "", transportError(err)
+	}
+
+	// 群侧接口按 err_code 报业务失败，取凭证与接入点那一族用的是 code。两个都读：
+	// 万一平台换字段名，「没有权限」也不会被误当成「没有群名」。
+	var decoded struct {
+		GroupName string `json:"group_name"`
+		ErrCode   int    `json:"err_code"`
+		Code      int    `json:"code"`
+		Message   string `json:"message"`
+	}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		if response.StatusCode >= http.StatusInternalServerError {
+			return "", &QQError{HTTPStatus: response.StatusCode, Reason: "连不上 QQ 接口", Transient: true}
+		}
+		return "", &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 群信息接口返回了无法解析的内容"}
+	}
+	if decoded.ErrCode != 0 {
+		return "", errorForCode(decoded.ErrCode, decoded.Message, response.StatusCode)
+	}
+	if decoded.Code != 0 {
+		return "", errorForCode(decoded.Code, decoded.Message, response.StatusCode)
+	}
+	if response.StatusCode >= http.StatusInternalServerError {
+		return "", &QQError{HTTPStatus: response.StatusCode, Reason: "连不上 QQ 接口", Transient: true}
+	}
+	if response.StatusCode == http.StatusUnauthorized {
+		return "", &QQError{HTTPStatus: response.StatusCode, Reason: "访问凭证已失效"}
+	}
+	if response.StatusCode >= http.StatusBadRequest {
+		return "", &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 接口拒绝了本次请求"}
+	}
+	name := strings.TrimSpace(decoded.GroupName)
+	if name == "" {
+		return "", &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 群信息接口没有返回群名"}
+	}
+	return name, nil
 }
 
 // GatewayURL 取 WebSocket 接入点。

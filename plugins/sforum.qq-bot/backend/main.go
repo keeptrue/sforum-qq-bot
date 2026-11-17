@@ -1,8 +1,8 @@
 // Package main 是 sforum.qq-bot 的 Protocol V2 后端。
 //
 // 它把论坛的 topic.created 事件变成 QQ 群里的推送，并提供三个设置页工具
-// （测试推送 / 推送状态 / 模板预览）、五条扩展路由（扫码绑定、预览、测试推送、
-// 状态）与一个可选的群 ID 识别长连接。
+// （测试推送 / 推送状态 / 模板预览）、六条扩展路由（扫码绑定、预览、测试推送、
+// 状态、群列表）与一个可选的群 ID 识别长连接。
 //
 // 边界：论坛数据只走宿主公开契约（Event / HostQuery），插件不直连数据库、
 // 不自建业务表；QQ 侧凭据只来自宿主设置项注入的环境变量。
@@ -60,6 +60,9 @@ type plugin struct {
 	bind      *BindClient
 	bindStore *BindStore
 
+	// groupNames 是群名的尽力而为缓存：群列表接口只在有缓存或还有配额时才问平台。
+	groupNames *groupNameCache
+
 	topicQuery topicQueryFunc
 	probeOnce  sync.Once
 }
@@ -95,6 +98,7 @@ func newPlugin(config Config, logOutput io.Writer) *plugin {
 		sender:     client,
 		bind:       newBindClient(log),
 		bindStore:  NewBindStore(time.Now),
+		groupNames: newGroupNameCache(time.Now),
 	}
 	instance.Server = pluginv2.NewServer()
 	registry, err := pluginv2.NewAIToolRegistry(aiToolDefinitions(instance)...)
