@@ -1,4 +1,4 @@
-# 0.4.0 真机验收操作单
+# 0.4.1 真机验收操作单
 
 照着从上往下做，每节末尾有一个「✓ 通过判据」方框，做完打勾再往下。
 全篇不需要读代码；出现对不上的现象时，按每节「失败长什么样」那一段定位。
@@ -8,7 +8,7 @@
 
 - 站点地址：`http://127.0.0.1:3000`
 - 后台前缀：`/control-panel`（`SForum/.env:79` 的 `NUXT_PUBLIC_ADMIN_ROUTE_PREFIX`）
-- 插件版本：`0.4.0`（`plugins/sforum.qq-bot/sforum.extension.json` 的 `version`）
+- 插件版本：`0.4.1`（`plugins/sforum.qq-bot/sforum.extension.json` 的 `version`）
 
 ---
 
@@ -22,7 +22,7 @@
 
 看：后台 →「扩展」→「插件」。
 
-- 成功：列表里有「QQ 机器人」卡片，版本 `0.4.0`。
+- 成功：列表里有「QQ 机器人」卡片，版本 `0.4.1`。
 - 失败长什么样：列表里根本没有这张卡片 → `.env` 那行路径写错、或 API 没重启。
   路径写错时宿主不会报错，只会静默少扫一个源。
 
@@ -44,7 +44,7 @@ grep -A1 '"backend": {' plugins/sforum-qq-bot/sforum.extension.json
 sha256sum plugins/sforum.qq-bot/backend/plugin
 ```
 
-本轮实测两边都是 `5e7935a8008c268a504e02019c133686827e20246ef2810f266c875138abcaf2`。
+本轮实测两边都是 `904b5c2805abfb184c4405439dd0cbed437d518f27ae70dda9e0c67071809f2f`。
 
 - **后台不显示 `backend.digest`**，任何界面都没有它（在宿主根跑
   `rg 'backendDigest|backend\.digest' apps/web` 零命中）。
@@ -69,7 +69,7 @@ sha256sum plugins/sforum.qq-bot/backend/plugin
 
 > **✓ 通过判据（前置检查）**
 >
-> - 「扩展 → 插件」里能看到「QQ 机器人」，版本 `0.4.0`，开关是开的
+> - 「扩展 → 插件」里能看到「QQ 机器人」，版本 `0.4.1`，开关是开的
 > - `sha256sum` 与清单 `backend.digest` 逐字相同
 > - 超级管理员已登录，能进「扩展 → 插件」页面
 
@@ -441,3 +441,6 @@ https://forum.example.com/t/10001
 - 需要重跑制品摘要：`./scripts/prepare-package.sh`；它同时会跑
   `extension validate` / `brand check` / `test`。
 - 摘要为什么会在 dev 与 release 之间不一样：看 `NOTES.md` §11，别再当 bug 查一遍。
+- 徽标显示「连接异常」时先读它下面那句原因：带「取凭证接口…」的是凭据/解析问题（凭据不对、
+  接口返回的形状变了）；写「连不上 QQ 接口」的是网络/代理问题（连不到 `api.bot.qq.com`、代理没通）。
+  这两类在 0.4.1 起分开报，别混着查。
