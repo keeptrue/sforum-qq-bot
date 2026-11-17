@@ -298,6 +298,20 @@
       "version": "1"
     },
     {
+      "digest": "ad954d5be3f54130672d8d8cd2f07ec97a84af7a009c7297343042655be83910",
+      "id": "sforum.qq-bot.account.status.input",
+      "kind": "schema",
+      "path": "schemas/account-status-input.json",
+      "version": "1"
+    },
+    {
+      "digest": "c4ef544c0e04d8a6d431dad767a4c3f5525857e2a2795ab1b6addbb2b5e40365",
+      "id": "sforum.qq-bot.account.status.output",
+      "kind": "schema",
+      "path": "schemas/account-status-output.json",
+      "version": "1"
+    },
+    {
       "digest": "e1bbdbbbb74b2d6acad00be0a3ca5e24f1acd4f3eae4625777a8a0f2b2c3f9ea",
       "id": "sforum.qq-bot.file.openapi",
       "kind": "openapi",
@@ -438,6 +452,24 @@
       "permission": "sforum.qq-bot.manage",
       "requestSchema": "sforum.qq-bot.groups.list.input@1",
       "responseSchema": "sforum.qq-bot.groups.list.output@1",
+      "timeoutMs": 15000
+    },
+    {
+      "access": "permission",
+      "action": "add",
+      "contractVersion": "sforum.qq-bot.route.account_status@1",
+      "fallback": "closed",
+      "guard": "core.guard.permission",
+      "handler": "sforum.qq-bot.route.account_status",
+      "id": "sforum.qq-bot.route.account_status",
+      "methods": [
+        "POST"
+      ],
+      "mode": "http",
+      "path": "/account/status",
+      "permission": "sforum.qq-bot.manage",
+      "requestSchema": "sforum.qq-bot.account.status.input@1",
+      "responseSchema": "sforum.qq-bot.account.status.output@1",
       "timeoutMs": 15000
     }
   ],

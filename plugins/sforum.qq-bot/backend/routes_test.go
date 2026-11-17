@@ -37,6 +37,7 @@ func newRouteTestPlugin(t *testing.T, config Config, sender Sender) *plugin {
 		bind:       newBindClient(log),
 		bindStore:  NewBindStore(time.Now),
 		groupNames: newGroupNameCache(time.Now),
+		botProfile: newBotProfileCache(time.Now),
 	}
 	instance.Server = pluginv2.NewServer()
 	return instance

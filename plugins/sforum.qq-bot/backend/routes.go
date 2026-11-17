@@ -20,26 +20,29 @@ import (
 // 与清单 routes[]、schemas/ 逐字一致的契约常量。清单由 pm 维护，这里只读地镜像
 // 同一批字符串：任何一侧改动都必须同步。
 const (
-	routeBindStartID  = "sforum.qq-bot.route.bind_start"
-	routeBindPollID   = "sforum.qq-bot.route.bind_poll"
-	routePreviewID    = "sforum.qq-bot.route.preview"
-	routeTestPushID   = "sforum.qq-bot.route.test_push"
-	routeStatusID     = "sforum.qq-bot.route.status"
-	routeGroupsListID = "sforum.qq-bot.route.groups_list"
+	routeBindStartID     = "sforum.qq-bot.route.bind_start"
+	routeBindPollID      = "sforum.qq-bot.route.bind_poll"
+	routePreviewID       = "sforum.qq-bot.route.preview"
+	routeTestPushID      = "sforum.qq-bot.route.test_push"
+	routeStatusID        = "sforum.qq-bot.route.status"
+	routeGroupsListID    = "sforum.qq-bot.route.groups_list"
+	routeAccountStatusID = "sforum.qq-bot.route.account_status"
 
-	bindStartOutputSchema  = "sforum.qq-bot.bind.start.output@1"
-	bindPollOutputSchema   = "sforum.qq-bot.bind.poll.output@1"
-	previewOutputSchema    = "sforum.qq-bot.preview.output@1"
-	testPushOutputSchema   = "sforum.qq-bot.test_push.output@1"
-	statusOutputSchema     = "sforum.qq-bot.status.output@1"
-	groupsListOutputSchema = "sforum.qq-bot.groups.list.output@1"
+	bindStartOutputSchema     = "sforum.qq-bot.bind.start.output@1"
+	bindPollOutputSchema      = "sforum.qq-bot.bind.poll.output@1"
+	previewOutputSchema       = "sforum.qq-bot.preview.output@1"
+	testPushOutputSchema      = "sforum.qq-bot.test_push.output@1"
+	statusOutputSchema        = "sforum.qq-bot.status.output@1"
+	groupsListOutputSchema    = "sforum.qq-bot.groups.list.output@1"
+	accountStatusOutputSchema = "sforum.qq-bot.account.status.output@1"
 
-	bindStartInputSchema  = "sforum.qq-bot.bind.start.input@1"
-	bindPollInputSchema   = "sforum.qq-bot.bind.poll.input@1"
-	previewInputSchema    = "sforum.qq-bot.preview.input@1"
-	testPushInputSchema   = "sforum.qq-bot.test_push.input@1"
-	statusInputSchema     = "sforum.qq-bot.status.input@1"
-	groupsListInputSchema = "sforum.qq-bot.groups.list.input@1"
+	bindStartInputSchema     = "sforum.qq-bot.bind.start.input@1"
+	bindPollInputSchema      = "sforum.qq-bot.bind.poll.input@1"
+	previewInputSchema       = "sforum.qq-bot.preview.input@1"
+	testPushInputSchema      = "sforum.qq-bot.test_push.input@1"
+	statusInputSchema        = "sforum.qq-bot.status.input@1"
+	groupsListInputSchema    = "sforum.qq-bot.groups.list.input@1"
+	accountStatusInputSchema = "sforum.qq-bot.account.status.input@1"
 )
 
 // 路由侧的可读拒绝文案。它们只出现在 ErrorDetail 或 {ok:false, message} 里，
@@ -86,6 +89,8 @@ func (p *plugin) InvokeRoute(ctx context.Context, request *pluginwire.RouteReque
 		return p.routeStatus(request)
 	case routeGroupsListID:
 		return p.routeGroupsList(ctx, request)
+	case routeAccountStatusID:
+		return p.routeAccountStatus(ctx, request)
 	default:
 		return routeFailure(request, http.StatusNotFound,
 			protocolwire.ErrorCode_ERROR_CODE_NOT_FOUND, "qq_bot.route_unknown",
@@ -343,6 +348,40 @@ func (p *plugin) routeGroupsList(ctx context.Context, request *pluginwire.RouteR
 		"groups":         groups,
 		"claimEnabled":   p.cfg.EnableGroupIDClaim,
 		"recordingLimit": claimRingSize,
+	})
+}
+
+// routeAccountStatus 是设置页「账号状态」卡片的唯一数据源：机器人身份（带缓存）、
+// 网关状态（只读进程内状态，不发请求）、群数量与检查时间。
+//
+// 它永远返回 200：机器人信息拿不到只是 available=false + 可读 reason，卡片其余
+// 部分照常显示——运营者打开设置页不该因为平台抖动而看到一整块错误。
+func (p *plugin) routeAccountStatus(ctx context.Context, request *pluginwire.RouteRequest) (*pluginwire.RouteResponse, error) {
+	now := time.Now()
+	profile, reason := p.accountBot(ctx)
+	var botReason any
+	if reason != "" {
+		botReason = reason
+	}
+	recognized := 0
+	if p.state != nil {
+		recognized = len(p.state.RecentClaims(claimRingSize))
+	}
+	return p.routeDocument(request, accountStatusOutputSchema, map[string]any{
+		"appId":                 p.cfg.AppID,
+		"credentialsConfigured": p.cfg.CredentialsConfigured(),
+		"bot": map[string]any{
+			"name":      profile.Name,
+			"avatarUrl": profile.AvatarURL,
+			"available": reason == "",
+			"reason":    botReason,
+		},
+		"gateway": accountGateway(p.gateway.Status(), now),
+		"groups": map[string]any{
+			"recognized":  recognized,
+			"whitelisted": countUniqueGroups(p.cfg.GroupIDs),
+		},
+		"checkedAt": now.UTC().Format(time.RFC3339),
 	})
 }
 

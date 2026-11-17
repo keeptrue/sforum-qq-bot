@@ -586,3 +586,89 @@ func messageIDPrefix(messageID string) string {
 	}
 	return string(runes[:8])
 }
+
+// BotProfile 取机器人自身信息（`GET /users/@me`，官方 50 QPS）。它只用于设置页
+// 的状态卡片，失败时由调用方降级成「信息不可用」，绝不影响推送。
+func (c *QQClient) BotProfile(ctx context.Context) (BotProfile, error) {
+	if !c.configured() {
+		return BotProfile{}, &QQError{Reason: messageAccountCredentialsMissing}
+	}
+	token, err := c.AccessToken(ctx)
+	if err != nil {
+		return BotProfile{}, err
+	}
+	profile, err := c.botProfileOnce(ctx, token)
+	var qqError *QQError
+	if err == nil || !errors.As(err, &qqError) || qqError.HTTPStatus != http.StatusUnauthorized {
+		return profile, err
+	}
+	c.invalidateToken()
+	fresh, refreshErr := c.AccessToken(ctx)
+	if refreshErr != nil {
+		return BotProfile{}, refreshErr
+	}
+	return c.botProfileOnce(ctx, fresh)
+}
+
+func (c *QQClient) botProfileOnce(ctx context.Context, token string) (BotProfile, error) {
+	requestCtx, cancel := c.requestContext(ctx)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, c.baseURL+"/users/@me", nil)
+	if err != nil {
+		return BotProfile{}, &QQError{Reason: "构造机器人信息请求失败"}
+	}
+	request.Header.Set("Authorization", "QQBot "+token)
+	response, err := c.http.Do(request)
+	if err != nil {
+		return BotProfile{}, transportError(err)
+	}
+	defer response.Body.Close()
+	payload, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return BotProfile{}, transportError(err)
+	}
+
+	var decoded struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+		Avatar   string `json:"avatar"`
+		ErrCode  int    `json:"err_code"`
+		Code     int    `json:"code"`
+		Message  string `json:"message"`
+	}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		if response.StatusCode >= http.StatusInternalServerError {
+			return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "连不上 QQ 接口", Transient: true}
+		}
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 机器人信息接口返回了无法解析的内容"}
+	}
+	if decoded.ErrCode != 0 {
+		return BotProfile{}, errorForCode(decoded.ErrCode, decoded.Message, response.StatusCode)
+	}
+	if decoded.Code != 0 {
+		return BotProfile{}, errorForCode(decoded.Code, decoded.Message, response.StatusCode)
+	}
+	if response.StatusCode >= http.StatusInternalServerError {
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "连不上 QQ 接口", Transient: true}
+	}
+	if response.StatusCode == http.StatusUnauthorized {
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "访问凭证已失效"}
+	}
+	if response.StatusCode >= http.StatusBadRequest {
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 接口拒绝了本次请求"}
+	}
+
+	// 头像：官方返回完整 URL。万一是相对路径，宁可不给也不拼一个猜的基址。
+	avatar := strings.TrimSpace(decoded.Avatar)
+	if avatar != "" {
+		parsed, parseErr := url.Parse(avatar)
+		if parseErr != nil || !parsed.IsAbs() || parsed.Host == "" {
+			avatar = ""
+		}
+	}
+	name := strings.TrimSpace(decoded.Username)
+	if name == "" {
+		return BotProfile{}, &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 机器人信息接口没有返回昵称"}
+	}
+	return BotProfile{ID: strings.TrimSpace(decoded.ID), Name: name, AvatarURL: avatar}, nil
+}
