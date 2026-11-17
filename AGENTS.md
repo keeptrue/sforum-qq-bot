@@ -9,7 +9,7 @@ SForum 的 QQ 机器人插件：论坛新主题推送到 QQ 群，并把机器�
 - 扩展 id：`sforum.qq-bot`；版本在 `plugins/sforum.qq-bot/sforum.extension.json`
 - 面向运营者的说明见仓库根 `README.md`，设计取舍与踩坑记录见 `NOTES.md`
 
-> 当前状态：**`0.4.0`（M1 新帖推送 + M1.1 扫码绑定 / 组件设置页 + M1.2 加固 + M1.3 当前账号卡片与 @ 回复）**。
+> 当前状态：**`0.4.1`（M1 新帖推送 + M1.1 扫码绑定 / 组件设置页 + M1.2 加固 + M1.3 当前账号卡片与 @ 回复）**。
 > 清单、后端（Protocol V2）、设置页组件与契约（schemas + openapi 片段）全部就位并通过
 > 宿主 `extension validate` / `test` / `brand check`；入站回流、频道/单聊、CSV 导出未做
 > （见 `docs/plan-qq-bot.md` §13 的交付状态）。

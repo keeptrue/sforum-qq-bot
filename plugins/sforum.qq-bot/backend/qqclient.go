@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,50 @@ const (
 	// tokenFallbackTTL 是平台没给 expires_in 时的保守有效期。
 	tokenFallbackTTL = 7200 * time.Second
 )
+
+// flexInt 是「平台可能给数字、也可能给字符串」的整型。
+//
+// 取凭证接口实测返回 {"access_token":"…","expires_in":"7111"}——expires_in 是
+// **字符串**，而文档示例与早期版本给的是数字。写成 int 会让 json.Unmarshal 直接
+// 报 "cannot unmarshal string into Go struct field … of type int"，token 永远拿不到
+// （0.4.0 线上离线就是这么来的）。两种形状都要能读。
+//
+// 空串、null、缺字段都当 0，由调用方按「0 = 平台没给」处理。
+type flexInt int
+
+func (f *flexInt) UnmarshalJSON(raw []byte) error {
+	text := strings.TrimSpace(string(raw))
+	if text == "" || text == "null" {
+		*f = 0
+		return nil
+	}
+	if text[0] == '"' {
+		var quoted string
+		if err := json.Unmarshal(raw, &quoted); err != nil {
+			return errFlexInt
+		}
+		quoted = strings.TrimSpace(quoted)
+		if quoted == "" {
+			*f = 0
+			return nil
+		}
+		value, err := strconv.ParseInt(quoted, 10, 64)
+		if err != nil {
+			return errFlexInt
+		}
+		*f = flexInt(value)
+		return nil
+	}
+	var numeric float64
+	if err := json.Unmarshal(raw, &numeric); err != nil {
+		return errFlexInt
+	}
+	*f = flexInt(int64(numeric))
+	return nil
+}
+
+// errFlexInt 只说「形状不对」，不回显字段值。
+var errFlexInt = errors.New("字段既不是数字也不是整数字符串")
 
 // QQError 是一次 QQ 接口调用的失败。Reason 是给管理员看的中文文案，Code 只放在
 // 括号里供排错；Transient 决定调度器是否值得重试。
@@ -177,16 +222,30 @@ func (c *QQClient) refreshToken(ctx context.Context) (string, error) {
 	}
 
 	var decoded struct {
-		AccessToken string `json:"access_token"`
-		ExpiresIn   int    `json:"expires_in"`
-		Code        int    `json:"code"`
-		Message     string `json:"message"`
+		AccessToken string  `json:"access_token"`
+		ExpiresIn   flexInt `json:"expires_in"`
+		Code        int     `json:"code"`
+		Message     string  `json:"message"`
 	}
 	if err := json.Unmarshal(payload, &decoded); err != nil {
 		if response.StatusCode >= http.StatusInternalServerError {
 			return "", &QQError{HTTPStatus: response.StatusCode, Reason: "连不上 QQ 接口", Transient: true}
 		}
-		return "", &QQError{HTTPStatus: response.StatusCode, Reason: "QQ 取凭证接口返回了无法解析的内容"}
+		// 两种失败要能分开：body 根本不是 JSON（网关/代理回了 HTML 之类），
+		// 还是 JSON 能开但字段形状不对（例如 expires_in 既非数字也非字符串）。
+		// 只报状态码、Content-Type 与字节数——body 原文与任何 token 都不进错误。
+		if !json.Valid(payload) {
+			return "", &QQError{
+				HTTPStatus: response.StatusCode,
+				Reason: fmt.Sprintf("QQ 取凭证接口返回的不是 JSON（HTTP %d，Content-Type %s，%d 字节）",
+					response.StatusCode, response.Header.Get("Content-Type"), len(payload)),
+			}
+		}
+		return "", &QQError{
+			HTTPStatus: response.StatusCode,
+			Reason:     fmt.Sprintf("QQ 取凭证接口的响应字段形状不对（HTTP %d）", response.StatusCode),
+			Detail:     err.Error(),
+		}
 	}
 	// 取凭证接口的业务失败仍是 HTTP 200，必须按 body 的 code 判成败。
 	if decoded.Code != 0 {
@@ -198,14 +257,14 @@ func (c *QQClient) refreshToken(ctx context.Context) (string, error) {
 	if strings.TrimSpace(decoded.AccessToken) == "" {
 		return "", &QQError{
 			HTTPStatus: response.StatusCode,
-			Reason:     "QQ 取凭证接口没有返回访问凭证",
+			Reason:     fmt.Sprintf("QQ 取凭证接口没有返回 access_token（HTTP %d）", response.StatusCode),
 			Detail:     strings.TrimSpace(decoded.Message),
 		}
 	}
 
 	ttl := tokenFallbackTTL
-	if decoded.ExpiresIn > 0 {
-		ttl = time.Duration(decoded.ExpiresIn) * time.Second
+	if seconds := int(decoded.ExpiresIn); seconds > 0 {
+		ttl = time.Duration(seconds) * time.Second
 	}
 	c.mu.Lock()
 	c.token = decoded.AccessToken

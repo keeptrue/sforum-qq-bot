@@ -391,3 +391,130 @@ func TestSendPassiveGroupMessageCarriesMsgID(t *testing.T) {
 		t.Fatalf("空 msg_id 不该发请求，实际发了 %d 条", count)
 	}
 }
+
+// 真实线上形状：expires_in 是字符串。写成 int 会让 token 永远拿不到。
+func TestAccessTokenAcceptsStringExpiresIn(t *testing.T) {
+	var tokenCalls atomic.Int32
+	client := newTestQQClient(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != tokenPath {
+			t.Errorf("意外路径 %s", request.URL.Path)
+			writeJSON(t, writer, http.StatusNotFound, map[string]any{})
+			return
+		}
+		tokenCalls.Add(1)
+		// 线上实测的逐字形状：expires_in 是字符串。
+		writeJSON(t, writer, http.StatusOK, map[string]any{"access_token": "tok-string", "expires_in": "7111"})
+	}))
+
+	start := client.now()
+	token, err := client.AccessToken(t.Context())
+	if err != nil {
+		t.Fatalf("字符串 expires_in 不该解析失败：%v", err)
+	}
+	if token != "tok-string" {
+		t.Fatalf("token 不对：%q", token)
+	}
+	client.mu.Lock()
+	expiry := client.tokenExpiry
+	client.mu.Unlock()
+	if want := start.Add(7111 * time.Second); expiry.Sub(want) > time.Second || expiry.Sub(want) < -time.Second {
+		t.Fatalf("过期时间应按 7111 秒算，实际 %s（期望约 %s）", expiry, want)
+	}
+
+	// 缓存命中：第二次不该再打取凭证接口。
+	if _, err := client.AccessToken(t.Context()); err != nil {
+		t.Fatalf("第二次取 token 失败：%v", err)
+	}
+	if calls := tokenCalls.Load(); calls != 1 {
+		t.Fatalf("token 应缓存命中，实际取凭证 %d 次", calls)
+	}
+}
+
+// 数字形状的回归：文档示例与旧版本给的是数字，不能被上一处改动弄坏。
+func TestAccessTokenAcceptsNumericExpiresIn(t *testing.T) {
+	client := newTestQQClient(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != tokenPath {
+			t.Errorf("意外路径 %s", request.URL.Path)
+			writeJSON(t, writer, http.StatusNotFound, map[string]any{})
+			return
+		}
+		writeJSON(t, writer, http.StatusOK, map[string]any{"access_token": "tok-number", "expires_in": 7200})
+	}))
+
+	start := client.now()
+	token, err := client.AccessToken(t.Context())
+	if err != nil {
+		t.Fatalf("数字 expires_in 不该解析失败：%v", err)
+	}
+	if token != "tok-number" {
+		t.Fatalf("token 不对：%q", token)
+	}
+	client.mu.Lock()
+	expiry := client.tokenExpiry
+	client.mu.Unlock()
+	if want := start.Add(7200 * time.Second); expiry.Sub(want) > time.Second || expiry.Sub(want) < -time.Second {
+		t.Fatalf("过期时间应按 7200 秒算，实际 %s（期望约 %s）", expiry, want)
+	}
+}
+
+// 错误文案要分清三种失败：不是 JSON、JSON 但字段形状不对、JSON 但没有 access_token。
+func TestAccessTokenErrorMessagesAreSpecific(t *testing.T) {
+	t.Run("不是 JSON", func(t *testing.T) {
+		client := newTestQQClient(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			// 200 但 body 是 HTML：反向代理/网关最典型的伪装形态。
+			writer.Header().Set("Content-Type", "text/html")
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write([]byte("<html>bad gateway</html>"))
+		}))
+		_, err := client.AccessToken(t.Context())
+		if err == nil {
+			t.Fatal("应返回错误")
+		}
+		message := adminReason(err)
+		if !strings.Contains(message, "不是 JSON") {
+			t.Fatalf("应说明不是 JSON：%q", message)
+		}
+		if !strings.Contains(message, "text/html") {
+			t.Fatalf("应带上 Content-Type：%q", message)
+		}
+		if strings.Contains(message, "bad gateway") {
+			t.Fatalf("错误里不该出现 body 原文：%q", message)
+		}
+	})
+
+	t.Run("JSON 但字段形状不对", func(t *testing.T) {
+		client := newTestQQClient(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, writer, http.StatusOK, map[string]any{
+				"access_token": "tok", "expires_in": map[string]any{"nested": 1},
+			})
+		}))
+		_, err := client.AccessToken(t.Context())
+		if err == nil {
+			t.Fatal("应返回错误")
+		}
+		message := adminReason(err)
+		if !strings.Contains(message, "字段形状不对") {
+			t.Fatalf("应说明字段形状不对：%q", message)
+		}
+		if strings.Contains(message, "tok") {
+			t.Fatalf("错误里不该出现 token：%q", message)
+		}
+	})
+
+	t.Run("JSON 但没有 access_token", func(t *testing.T) {
+		client := newTestQQClient(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, writer, http.StatusOK, map[string]any{"expires_in": 7200})
+		}))
+		_, err := client.AccessToken(t.Context())
+		if err == nil {
+			t.Fatal("应返回错误")
+		}
+		message := adminReason(err)
+		if !strings.Contains(message, "没有返回 access_token") {
+			t.Fatalf("应说明缺 access_token：%q", message)
+		}
+		if !strings.Contains(message, "HTTP 200") {
+			t.Fatalf("应带上状态码：%q", message)
+		}
+	})
+}

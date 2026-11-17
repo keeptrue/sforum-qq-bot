@@ -139,7 +139,7 @@
     "name": "SForum"
   },
   "backend": {
-    "digest": "5e7935a8008c268a504e02019c133686827e20246ef2810f266c875138abcaf2",
+    "digest": "904b5c2805abfb184c4405439dd0cbed437d518f27ae70dda9e0c67071809f2f",
     "entry": "backend/plugin",
     "hostApiVersion": "sforum.host@2",
     "protocolVersion": 2,
@@ -186,7 +186,7 @@
   "openapi": [
     {
       "contractVersion": "sforum.qq-bot.openapi.routes@1",
-      "digest": "94f9e00fb07e7f05034e9339ebf66fe8fef7331ceb0138039e484441bb174d53",
+      "digest": "2ebc3dcbcd30491d54a2aa30b42f49355f866f1adcee9d6fda1ef4eed0901070",
       "id": "sforum.qq-bot.openapi.routes",
       "namespace": "sforum.qq-bot",
       "path": "openapi/routes.yaml"
@@ -194,7 +194,7 @@
   ],
   "packageFiles": [
     {
-      "digest": "5e7935a8008c268a504e02019c133686827e20246ef2810f266c875138abcaf2",
+      "digest": "904b5c2805abfb184c4405439dd0cbed437d518f27ae70dda9e0c67071809f2f",
       "id": "sforum.qq-bot.file.backend",
       "kind": "executable",
       "path": "backend/plugin"
@@ -312,7 +312,7 @@
       "version": "1"
     },
     {
-      "digest": "94f9e00fb07e7f05034e9339ebf66fe8fef7331ceb0138039e484441bb174d53",
+      "digest": "2ebc3dcbcd30491d54a2aa30b42f49355f866f1adcee9d6fda1ef4eed0901070",
       "id": "sforum.qq-bot.file.openapi",
       "kind": "openapi",
       "path": "openapi/routes.yaml"
@@ -476,5 +476,5 @@
   "sforumVersion": "\u003e=0.1.0",
   "type": "plugin",
   "url": "https://github.com/keeptrue/sforum-qq-bot",
-  "version": "0.4.0"
+  "version": "0.4.1"
 }

@@ -387,3 +387,40 @@ M1.3 加「被 @ 回一句说明」时按官方文档核对的事实，写在这
 
 来源：[发送群聊消息](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_groups_group_openid_messages.post.html)、
 [获取群基本信息](https://bot.q.qq.com/wiki/develop/api-v2/autogen/api/v2_groups_group_openid_info.get.html)。
+
+## 13. 字段类型与平台实际返回不一致（0.4.0 线上离线事故）
+
+**事故**：0.4.0 线上机器人一直离线，后台徽标显示「连接异常 / 取凭证接口返回了无法解析
+的内容」，QQ 端「连接到QQ Bot」页卡在连接中。根因是一行结构体：
+
+```go
+ExpiresIn int `json:"expires_in"`   // 平台实际返回的是字符串
+```
+
+腾讯 `POST https://api.bot.qq.com/app/getAppAccessToken`（`bots.qq.com` 同）实测返回
+`{"access_token":"…","expires_in":"7111"}`——**`expires_in` 是字符串**。`json.Unmarshal`
+直接报 `cannot unmarshal string into Go struct field .expires_in of type int`，于是
+`AccessToken()` 落到「返回了无法解析的内容」，网关拿不到 token、无法 identify，机器人
+永远离线。
+
+**修法**：`qqclient.go` 的 `flexInt`（数字 / 整数字符串 / 空串 / null 都能读，其余形状
+报错且不回显字段值）；取凭证的错误文案拆成「不是 JSON（带 HTTP 状态、Content-Type、
+字节数）」「字段形状不对」「没有返回 access_token」三种，body 原文与 token 一律不进错误。
+
+**教训（比修法本身更值钱）**：所有单测夹具当时都用 `"expires_in": 7200`（数字），于是
+**夹具的假形状掩盖了平台的真实形状**。以后凡是外部接口的字段，夹具至少覆盖两种：文档
+写的那种、以及实测抓到的那种。没有实测样本时，宁可按「两种都可能」写解析（`flexInt`
+就是这种形状），也不要按文档赌一次。
+
+### 13.1 同类待办（当前无线上证据，未改）
+
+| 位置 | 字段 | 判断 |
+| --- | --- | --- |
+| `backend/bind.go:236` | `Retcode int` | q.qq.com lite 两个端点（`/lite/create_bind_task`、`/lite/poll_bind_result`）**没有官方文档**，字段形状只来自本仓库调研附录（`docs/qq-api-v2-capabilities.md` §11.1 写的是 `"status": 0` 数字）。若平台改成 `"status":"2"`，症状与本次 token 事故一模一样：外层信封解不开或轮询落到「扫码服务返回了未知的绑定状态」。修法同 `flexInt`，但会牵动 bindstore / 路由层的状态判断与既有测试，**当前无线上证据，留待办**。 |
+| `backend/bind.go:289` | `Status int` | 同上，轮询状态码。 |
+| `backend/gateway.go:83-84` | `Op int` / `S int64` | 官方 gateway 文档明确是数字；且形状变了会先在连接层暴露（心跳/续接直接失败），不会像 token 那样静默卡死。暂不动。 |
+| `backend/gateway.go:360` | `heartbeat_interval int64` | 同上，官方文档明确是数字。暂不动。 |
+
+已核对无误（文档声明与代码一致，不列待办）：`SendResult.ID`（消息 id 字符串）、
+`BotProfile{ID,Username,Avatar}`（全 string + `bot` bool）、群信息 `group_name`（string）、
+`GatewayURL.url`（string）、各处 `err_code` / `code`（数字，且已做双字段兜底）。
